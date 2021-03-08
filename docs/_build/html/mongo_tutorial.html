@@ -1,0 +1,537 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tutorial: pyg.mongo &#8212; pyg 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="tutorial: pyg.timeseries" href="timeseries_tutorial.html" />
+    <link rel="prev" title="tutorial: pyg.base" href="base_tutorial.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="tutorial-pyg-mongo">
+<h1>tutorial: pyg.mongo<a class="headerlink" href="#tutorial-pyg-mongo" title="Permalink to this headline">¶</a></h1>
+<p>MongoDB has replaced our SQL databases as it is just too much fun to use. MongoDB does have its little quirks:</p>
+<ul class="simple">
+<li><p>The MongoDB ‘query document’ that replaces the SQL WHERE statements is very powerful but you need a PhD for even the simplest of queries.</p></li>
+<li><p>too many objects we use (specifically, numpy and pandas objects) cannot be pushed directly easily into Mongo.</p></li>
+<li><p>Mongo lacks the concept of a table with primary keys. Unstructured data is great but much of how we think of data is structured.</p></li>
+</ul>
+<p>pyg.mongo addresses all three issues:</p>
+<ul class="simple">
+<li><p><strong>q</strong> is a much easier way to generate Mongo queries. We are happy to acknowledge TinyDB &lt;<a class="reference external" href="https://tinydb.readthedocs.io/en/latest/usage.html#queries">https://tinydb.readthedocs.io/en/latest/usage.html#queries</a>&gt; for the idea.</p></li>
+<li><p><strong>mongo_cursor</strong> is a super-charged cursor and in particular, it handles encoding and decoding of objects seemlessly in a way that allows us to store all that we want in Mongo.</p></li>
+<li><p><strong>mongo_pk_cursor</strong> manages a table with primary keys and full history audit</p></li>
+</ul>
+<div class="section" id="q">
+<h2>q<a class="headerlink" href="#q" title="Permalink to this headline">¶</a></h2>
+<p>The MongoDB interface for query of a collection (table) is via a creation of a query document &lt;<a class="reference external" href="https://docs.mongodb.com/manual/tutorial/query-documents/">https://docs.mongodb.com/manual/tutorial/query-documents/</a>&gt;.
+This is rather complicated for the average use. For example, if you wanted to locate James Bond in the collection, you would use:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span> <span class="p">{</span><span class="s2">&quot;$and&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$eq&quot;</span><span class="p">:</span> <span class="s2">&quot;James&quot;</span><span class="p">}},</span> <span class="p">{</span><span class="s2">&quot;surname&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$eq&quot;</span><span class="p">:</span> <span class="s2">&quot;Bond&quot;</span><span class="p">}}]}</span>
+</pre></div>
+</div>
+<p>It’s doable, but not much fun. Luckily… you can write this instead:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">q</span><span class="p">(</span><span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;James&#39;</span><span class="p">,</span> <span class="n">surname</span> <span class="o">=</span> <span class="s1">&#39;Bond&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>What about all the James who are not Bond?</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="s2">&quot;$and&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$eq&quot;</span><span class="p">:</span> <span class="s2">&quot;James&quot;</span><span class="p">}},</span> <span class="p">{</span><span class="s2">&quot;surname&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$ne&quot;</span><span class="p">:</span> <span class="s2">&quot;Bond&quot;</span><span class="p">}}]}</span>
+</pre></div>
+</div>
+<p>Again, q comes to the rescue:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">surname</span><span class="o">!=</span><span class="s1">&#39;Bond&#39;</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;James&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 53%" />
+<col style="width: 28%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>query</p></th>
+<th class="head"><p>using query dict</p></th>
+<th class="head"><p>using q</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>a in [1,2,3]</p></td>
+<td><p>{“a”: {“$in”: [1, 2, 3]}}</p></td>
+<td><p>q(a = [1,2,3])</p></td>
+</tr>
+<tr class="row-odd"><td><p>a = 1 and b = 2</p></td>
+<td><p>{“$and”: [{“a”: {“$eq”: 1}}, {“b”: {“$eq”: 2}}]}</p></td>
+<td><p>q(a = 1, b = 2)</p></td>
+</tr>
+<tr class="row-even"><td><p>a = 1 or  b = 2</p></td>
+<td><p>{“$or”: [{“a”: {“$eq”: 1}}, {“b”: {“$eq”: 2}}]}</p></td>
+<td><p>(q.a == 1) | (q.b == 2)</p></td>
+</tr>
+<tr class="row-odd"><td><p>a &gt; 1</p></td>
+<td><p>{“a”: {“$gt”: 1}}</p></td>
+<td><p>q.a &gt; 1</p></td>
+</tr>
+<tr class="row-even"><td><p>a !=1</p></td>
+<td><p>{“a”: {“$ne”: 1}}</p></td>
+<td><p>q.a != 1</p></td>
+</tr>
+<tr class="row-odd"><td><p>key ‘a’ exists</p></td>
+<td><p>{“a”: {“$exists”: true}}</p></td>
+<td><p>q.a.exists</p></td>
+</tr>
+<tr class="row-even"><td><p>‘a’ not exists</p></td>
+<td><p>{“a”: {“$exists”: false}}</p></td>
+<td><p>q.a.not_exists</p></td>
+</tr>
+<tr class="row-odd"><td><p>not expression</p></td>
+<td><p>{“$not”: {“a”: {“$eq”: 1}}}</p></td>
+<td><p>~q(a = 1)</p></td>
+</tr>
+<tr class="row-even"><td><p>regex</p></td>
+<td><p>{“a”: {“regex”: “^txt”}}</p></td>
+<td><p>q.a == re.compile(‘^txt’)</p></td>
+</tr>
+</tbody>
+</table>
+<p>As you can see, q is callable and you can put expressions inside it, or you can use the q.key method.
+We end with a fun James Bond query. If we want to find the documents with actors who played James Bond:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">rs</span> <span class="o">=</span> <span class="n">dictable</span><span class="p">(</span><span class="n">name</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Daniel&#39;</span><span class="p">,</span> <span class="s1">&#39;Sean&#39;</span><span class="p">,</span> <span class="s1">&#39;Roger&#39;</span><span class="p">,</span> <span class="s1">&#39;Timothy&#39;</span><span class="p">],</span> <span class="n">surname</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Craig&#39;</span><span class="p">,</span> <span class="s1">&#39;Connery&#39;</span><span class="p">,</span> <span class="s1">&#39;Moore&#39;</span><span class="p">,</span> <span class="s1">&#39;Dalton&#39;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dictable</span><span class="p">[</span><span class="mi">4</span> <span class="n">x</span> <span class="mi">2</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">name</span>   <span class="o">|</span><span class="n">surname</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Daniel</span> <span class="o">|</span><span class="n">Craig</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Sean</span>   <span class="o">|</span><span class="n">Connery</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Roger</span>  <span class="o">|</span><span class="n">Moore</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Timothy</span><span class="o">|</span><span class="n">Dalton</span>
+</pre></div>
+</div>
+<p>And turning this into a query, q of a list of dicts are translated into the or expression so…</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt; q(list(rs))
+&gt;&gt;&gt; $or:
+&gt;&gt;&gt;     {&quot;$and&quot;: [{&quot;name&quot;: {&quot;$eq&quot;: &quot;Daniel&quot;}}, {&quot;surname&quot;: {&quot;$eq&quot;: &quot;Craig&quot;}}]}
+&gt;&gt;&gt;     {&quot;$and&quot;: [{&quot;name&quot;: {&quot;$eq&quot;: &quot;Roger&quot;}}, {&quot;surname&quot;: {&quot;$eq&quot;: &quot;Moore&quot;}}]}
+&gt;&gt;&gt;     {&quot;$and&quot;: [{&quot;name&quot;: {&quot;$eq&quot;: &quot;Sean&quot;}}, {&quot;surname&quot;: {&quot;$eq&quot;: &quot;Connery&quot;}}]}
+&gt;&gt;&gt;     {&quot;$and&quot;: [{&quot;name&quot;: {&quot;$eq&quot;: &quot;Timothy&quot;}}, {&quot;surname&quot;: {&quot;$eq&quot;: &quot;Dalton&quot;}}]}
+</pre></div>
+</div>
+</div>
+<div class="section" id="mongo-cursor">
+<h2>mongo_cursor<a class="headerlink" href="#mongo-cursor" title="Permalink to this headline">¶</a></h2>
+<p>The mongo cursor:</p>
+<ul class="simple">
+<li><p>enables saving seemlessly objects and data in MongoDB</p></li>
+<li><p>simplifies filtering</p></li>
+<li><p>simplifies projecting onto certain keys in document</p></li>
+</ul>
+<div class="section" id="general-objects-insertion-into-documents">
+<h3>general objects insertion into documents<a class="headerlink" href="#general-objects-insertion-into-documents" title="Permalink to this headline">¶</a></h3>
+<p>pymongo.Collection supports insertion of documents into it:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyg</span> <span class="kn">import</span> <span class="o">*</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">pymongo</span> <span class="k">as</span> <span class="nn">pym</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">pytest</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">pym</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">()[</span><span class="s1">&#39;test&#39;</span><span class="p">][</span><span class="s1">&#39;test&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>                                    <span class="c1"># drop all documents</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">))</span>            <span class="c1"># insert a document</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="o">&lt;</span><span class="n">pymongo</span><span class="o">.</span><span class="n">results</span><span class="o">.</span><span class="n">InsertOneResult</span> <span class="n">at</span> <span class="mh">0x261d1b20a80</span><span class="o">&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">count_documents</span><span class="p">({})</span> <span class="o">==</span> <span class="mi">1</span>           <span class="c1"># in order to count documents, must apply the empty filter {}</span>
+</pre></div>
+</div>
+<p>We can do similar stuff with a mongo_cursor</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt; t = mongo_table(table = &#39;test&#39;, db = &#39;test&#39;)
+&gt;&gt;&gt; t.drop()
+&gt;&gt;&gt; t.insert_one(dict(a = 1, b = 2))
+&gt;&gt;&gt;     &lt;class &#39;pyg.mongo._cursor.mongo_cursor&#39;&gt; for Collection(Database(MongoClient(host=[&#39;localhost:27017&#39;], document_class=dict, tz_aware=False, connect=True), &#39;test&#39;), &#39;test&#39;) # collection
+&gt;&gt;&gt;     M{} None                      # current filter
+&gt;&gt;&gt;     documents count: 1            # length
+&gt;&gt;&gt;     dict_keys([&#39;_id&#39;, &#39;a&#39;, &#39;b&#39;])  # keys of the first document
+&gt;&gt;&gt; assert len(t) == 1                # no need to specify the filter, mongo_cursor keeps track of the current filter
+</pre></div>
+</div>
+<p>Annoyingly, raw pymongo.Collection cannot encode for lots of existing objects.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ts</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="mf">1.</span><span class="p">,</span><span class="mf">2.</span><span class="p">],</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="mf">32.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">c</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="n">a</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">c</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">f</span> <span class="o">=</span> <span class="n">f</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">c</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Further, unless we define the encoding, new classes do not work either</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">NewClass</span><span class="p">():</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="n">n</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">def</span> <span class="fm">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="o">==</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">n</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">n</span> <span class="o">=</span> <span class="n">NewClass</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">c</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">n</span> <span class="o">=</span> <span class="n">n</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The mongo_cursor t can insert all these happily:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="n">a</span><span class="p">,</span> <span class="n">f</span> <span class="o">=</span> <span class="n">f</span><span class="p">,</span> <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">n</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="document-reading">
+<h3>document reading<a class="headerlink" href="#document-reading" title="Permalink to this headline">¶</a></h3>
+<p>What is nice is that you get back the <strong>object</strong> you saved, not just the data.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">doc</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">doc</span><span class="p">[</span><span class="s1">&#39;ts&#39;</span><span class="p">],</span> <span class="n">ts</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">doc</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">],</span> <span class="n">a</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">doc</span><span class="p">[</span><span class="s1">&#39;n&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">n</span>
+</pre></div>
+</div>
+<p>Is this magic? Not really…Let us explain. We first read the doc using the Collection:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">raw_doc</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">find_one</span><span class="p">({})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">raw_doc</span><span class="p">[</span><span class="s1">&#39;n&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;{&quot;py/object&quot;: &quot;__main__.NewClass&quot;, &quot;n&quot;: 1}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">encode</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;{&quot;py/object&quot;: &quot;__main__.NewClass&quot;, &quot;n&quot;: 1}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">decode</span><span class="p">(</span><span class="s1">&#39;{&quot;py/object&quot;: &quot;__main__.NewClass&quot;, &quot;n&quot;: 1}&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">n</span>
+</pre></div>
+</div>
+<p>The mongo_cursor encodes the object pre-saving. It then we decode it post loading. This is done transparently but the user does have full control of write/read decode protocol:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">writer</span> <span class="o">==</span> <span class="n">encode</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">reader</span> <span class="o">==</span> <span class="n">decode</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># for example, if we want the timeseries to be saved to parquet files:</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t2</span> <span class="o">=</span> <span class="n">mongo_table</span><span class="p">(</span><span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="n">writer</span> <span class="o">=</span> <span class="s1">&#39;.parquet&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">t2</span><span class="o">.</span><span class="n">writer</span> <span class="o">==</span> <span class="p">[</span><span class="n">parquet_write</span><span class="p">,</span> <span class="n">encode</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Similarly, we encode the array into data, and tell decoder to use bson2np to decode it:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">raw_doc</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x00\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00</span><span class="s1">&#39;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s1">&#39;shape&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span><span class="p">],</span>
+<span class="gp">&gt;&gt;&gt; </span> <span class="s1">&#39;dtype&#39;</span><span class="p">:</span> <span class="s1">&#39;{&quot;py/reduce&quot;: [{&quot;py/type&quot;: &quot;numpy.dtype&quot;}, {&quot;py/tuple&quot;: [&quot;i4&quot;, false, true]}, {&quot;py/tuple&quot;: [3, &quot;&lt;&quot;, null, null, null, -1, -1, 0]}]}&#39;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="s1">&#39;_obj&#39;</span><span class="p">:</span> <span class="s1">&#39;{&quot;py/function&quot;: &quot;pyg.base._encode.bson2np&quot;}&#39;</span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">decode</span><span class="p">(</span><span class="n">raw_doc</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]),</span> <span class="n">a</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Note</dt>
+<dd class="field-odd"><p>This works with the assumption that the person loading and person saving share the library.</p>
+</dd>
+</dl>
+<p>If, when loading the data from MongoDB, the user does not have ‘pyg.base._encode.bson2np’ installed, then he will receive the undecoded object.
+On the plus side, the user will receive a message saying pyg.base._encode.bson2np is missing and needs to be installed.</p>
+</div>
+<div class="section" id="document-writing-to-files">
+<h3>document writing to files<a class="headerlink" href="#document-writing-to-files" title="Permalink to this headline">¶</a></h3>
+<p>MongoDB is great for manipulating/searching dict keys/values.
+The actual dataframes in each doc, we may want to save in a file system because:</p>
+<ul class="simple">
+<li><p>DataFrames are stored as bytes in MongoDB anyway, so they are not searchable</p></li>
+<li><p>Storing in files allows other non-python/non-MongoDB users easier access, allowing data to be detached from app</p></li>
+<li><p>MongoDB free version has limitations on size of document</p></li>
+<li><p>For data licensing issues, data must not sit on servers but needs to be stored on local computer</p></li>
+</ul>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyg</span> <span class="kn">import</span> <span class="o">*</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">pymongo</span> <span class="k">as</span> <span class="nn">pym</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">doc</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">stock</span> <span class="o">=</span> <span class="s1">&#39;APPL&#39;</span><span class="p">,</span> <span class="n">price</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">99</span><span class="p">)),</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">other_stuff</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">other</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">99</span><span class="p">)),</span>
+<span class="gp">&gt;&gt;&gt; </span>               <span class="n">stuff</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">99</span><span class="p">))))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">mongo_table</span><span class="p">(</span><span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="n">writer</span> <span class="o">=</span> <span class="s1">&#39;c:/temp/</span><span class="si">%s</span><span class="s1">tock.parquet&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">pym</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">()[</span><span class="s1">&#39;test&#39;</span><span class="p">][</span><span class="s1">&#39;test&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>What is stored in MongoDB is the path to the file, which treat ‘c:/temp/%stock’ as the root. %stock is replaced with AAPL from the document and we get:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">find_one</span><span class="p">({})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">ObjectId</span><span class="p">(</span><span class="s1">&#39;6025207925f7cceaef545905&#39;</span><span class="p">),</span>
+<span class="gp">&gt;&gt;&gt; </span> <span class="s1">&#39;stock&#39;</span><span class="p">:</span> <span class="s1">&#39;APPL&#39;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span> <span class="s1">&#39;price&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;_obj&#39;</span><span class="p">:</span> <span class="s1">&#39;{&quot;py/function&quot;: &quot;pyg.base._parquet.pd_read_parquet&quot;}&#39;</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="s1">&#39;c:/temp/APPL/price.parquet&#39;</span><span class="p">},</span>
+<span class="gp">&gt;&gt;&gt; </span> <span class="s1">&#39;other_stuff&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;other&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;_obj&#39;</span><span class="p">:</span> <span class="s1">&#39;{&quot;py/function&quot;: &quot;pyg.base._parquet.pd_read_parquet&quot;}&#39;</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="s1">&#39;c:/temp/APPL/other_stuff/other.parquet&#39;</span><span class="p">},</span>
+<span class="gp">&gt;&gt;&gt; </span>                 <span class="s1">&#39;stuff&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;_obj&#39;</span><span class="p">:</span> <span class="s1">&#39;{&quot;py/function&quot;: &quot;pyg.base._parquet.pd_read_parquet&quot;}&#39;</span><span class="p">,</span><span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="s1">&#39;c:/temp/APPL/other_stuff/stuff.parquet&#39;</span><span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span>                <span class="p">}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">}</span>
+</pre></div>
+</div>
+<p>So without access to MongoDB, we can still read the data:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">other</span> <span class="o">=</span> <span class="n">pd_read_parquet</span><span class="p">(</span><span class="s1">&#39;c:/temp/APPL/other_stuff/other.parquet&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">doc</span><span class="p">[</span><span class="s1">&#39;other_stuff&#39;</span><span class="p">][</span><span class="s1">&#39;other&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Or just read the data using mongo_cursor seemlessly:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">loaded_doc</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">loaded_doc</span><span class="p">[</span><span class="s1">&#39;other_stuff&#39;</span><span class="p">][</span><span class="s1">&#39;other&#39;</span><span class="p">],</span> <span class="n">doc</span><span class="p">[</span><span class="s1">&#39;other_stuff&#39;</span><span class="p">][</span><span class="s1">&#39;other&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Finally, one can override ‘c:/temp/%stock’ by adding a ‘root’ to the document we are saving:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">doc</span><span class="p">[</span><span class="s1">&#39;root&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;c:/temp/my_own_place&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="n">doc</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">pd_read_parquet</span><span class="p">(</span><span class="s1">&#39;c:/temp/my_own_place/other_stuff/other.parquet&#39;</span><span class="p">),</span> <span class="n">doc</span><span class="p">[</span><span class="s1">&#39;other_stuff&#39;</span><span class="p">][</span><span class="s1">&#39;other&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="document-access">
+<h3>document access<a class="headerlink" href="#document-access" title="Permalink to this headline">¶</a></h3>
+<p>We start by pushing a 10x10 times table into t</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rs</span> <span class="o">=</span> <span class="p">(</span><span class="n">dictable</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span> <span class="o">*</span> <span class="n">dictable</span><span class="p">(</span><span class="n">b</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)))(</span><span class="n">c</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span><span class="o">*</span><span class="n">b</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">insert_many</span><span class="p">(</span><span class="n">rs</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We now examine how we drill down to the document(s) we want:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">inc</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">))</span> <span class="o">==</span> <span class="mi">10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">exc</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">))</span> <span class="o">==</span> <span class="mi">90</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">inc</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">),</span> <span class="n">mongo_cursor</span><span class="p">)</span> <span class="c1">## it is chain-able</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]))</span> <span class="o">==</span> <span class="mi">4</span>
+</pre></div>
+</div>
+<p>You can use the original collection too but it is much clunkier</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">spec</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;$and&#39;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$eq&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}},</span> <span class="p">{</span><span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]}}]}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">c</span><span class="o">.</span><span class="n">count_documents</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span> <span class="c1"># That is OK</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">):</span>  <span class="c1"># not OK, cannot chain queries</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">c</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s2">&quot;a&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$eq&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}})</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s2">&quot;b&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]}})</span>
+</pre></div>
+</div>
+<p>Just like a mongo.Cursor, c.find(spec), t is also iterable over the documents:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nb">sum</span><span class="p">([</span><span class="n">doc</span> <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">t</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">])],</span> <span class="n">dictable</span><span class="p">())</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dictable</span><span class="p">[</span><span class="mi">4</span> <span class="n">x</span> <span class="mi">4</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_id</span>                     <span class="o">|</span><span class="n">a</span><span class="o">|</span><span class="n">b</span><span class="o">|</span><span class="n">c</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9b</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9c</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">2</span><span class="o">|</span><span class="mi">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9d</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">3</span><span class="o">|</span><span class="mi">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9e</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">4</span><span class="o">|</span><span class="mi">4</span>
+</pre></div>
+</div>
+<p>The mongo_cursor also supports:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">])[::]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dictable</span><span class="p">[</span><span class="mi">4</span> <span class="n">x</span> <span class="mi">4</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_id</span>                     <span class="o">|</span><span class="n">a</span><span class="o">|</span><span class="n">b</span><span class="o">|</span><span class="n">c</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9b</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9c</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">2</span><span class="o">|</span><span class="mi">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9d</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">3</span><span class="o">|</span><span class="mi">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ad9e</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">4</span><span class="o">|</span><span class="mi">4</span>
+</pre></div>
+</div>
+<p>as well as sorting, e.g.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Finally, we can access specific documents using a dict in the getitem:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">t</span><span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">8</span><span class="p">)]</span><span class="o">.</span><span class="n">c</span> <span class="o">==</span> <span class="mi">56</span>
+</pre></div>
+</div>
+<p>This will throw an exception if more than one document matches the criteria.</p>
+</div>
+<div class="section" id="column-access">
+<h3>column access<a class="headerlink" href="#column-access" title="Permalink to this headline">¶</a></h3>
+<p>What values can ‘b’ take within our documents?</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">t</span><span class="o">.</span><span class="n">b</span> <span class="o">==</span> <span class="n">t</span><span class="o">.</span><span class="n">distinct</span><span class="p">(</span><span class="s1">&#39;b&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">c</span><span class="o">.</span><span class="n">distinct</span><span class="p">(</span><span class="s1">&#39;b&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Can we read just a and b? In MongoDB this requires us generating a ‘projection’. Luckily the mongo_cursor makes light work of this:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">inc</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">],</span> <span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">])[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="s1">&#39;$and&#39;</span><span class="p">:</span> <span class="p">[{</span><span class="s1">&#39;a&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$in&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]}},</span> <span class="p">{</span><span class="s1">&#39;b&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$in&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]}}]}</span> <span class="p">{</span><span class="s1">&#39;a&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>  <span class="c1">##&lt;----- the last bit is the projection</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">documents</span> <span class="n">count</span><span class="p">:</span> <span class="mi">9</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dict_keys</span><span class="p">([</span><span class="s1">&#39;_id&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">])</span> <span class="c1"># &lt;---- since we projected to see &#39;a&#39; only, that is the only key that is available</span>
+</pre></div>
+</div>
+<p>And here is how we grab just all ‘a’ and ‘b’:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">inc</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">inc</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">b</span><span class="o">&gt;</span><span class="mi">6</span><span class="p">)[[</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">]][::]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dictable</span><span class="p">[</span><span class="mi">3</span> <span class="n">x</span> <span class="mi">3</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_id</span>                     <span class="o">|</span><span class="n">a</span><span class="o">|</span><span class="n">b</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ada1</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">7</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ada2</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">8</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">60244</span><span class="n">a9a57099f75f3d8ada3</span><span class="o">|</span><span class="mi">1</span><span class="o">|</span><span class="mi">9</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="add-remove-column">
+<h3>add/remove column<a class="headerlink" href="#add-remove-column" title="Permalink to this headline">¶</a></h3>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">del</span> <span class="n">t</span><span class="p">[</span><span class="s1">&#39;c&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="adding-new-columns">
+<h3>adding new columns:<a class="headerlink" href="#adding-new-columns" title="Permalink to this headline">¶</a></h3>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">c</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">c</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span><span class="o">*</span><span class="n">b</span><span class="p">)</span> <span class="c1"># yes, this works. The mongo_cursor will iterate over the documents and save the result</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="mongo-reader-vs-mongo-cursor">
+<h3>mongo_reader vs mongo_cursor<a class="headerlink" href="#mongo-reader-vs-mongo-cursor" title="Permalink to this headline">¶</a></h3>
+<p>Because it is very easy to do stuff in MongoDB that can cause damage (e.g. t.drop()), we also introduce a mongo_reader that lacks the ‘write’ functionality of the mongo_cursor.
+Similarly, the mongo_pk_reader is the read-only version of the mongo_pk_cursor we shall meet shortly.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">mongo_table</span><span class="p">(</span><span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="n">mode</span> <span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="c1"># mongo_cursor</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">r</span> <span class="o">=</span> <span class="n">mongo_table</span><span class="p">(</span><span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="n">mode</span> <span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="c1"># mongo_reader</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">r</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="mongo-pk-table">
+<h2>mongo_pk_table<a class="headerlink" href="#mongo-pk-table" title="Permalink to this headline">¶</a></h2>
+<p>Suppose we want to have a table of people</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyg</span> <span class="kn">import</span> <span class="o">*</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">pymongo</span> <span class="k">as</span> <span class="nn">pym</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">pytest</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">mongo_table</span><span class="p">(</span><span class="n">table</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="n">db</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">pym</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">()[</span><span class="s1">&#39;test&#39;</span><span class="p">][</span><span class="s1">&#39;test&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pk</span> <span class="o">=</span> <span class="n">mongo_table</span><span class="p">(</span><span class="n">table</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="n">db</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span><span class="p">,</span> <span class="n">pk</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;surname&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">dictable</span><span class="p">(</span><span class="n">name</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;alan&#39;</span><span class="p">,</span> <span class="s1">&#39;alan&#39;</span><span class="p">,</span> <span class="s1">&#39;barbara&#39;</span><span class="p">,</span> <span class="s1">&#39;chris&#39;</span><span class="p">],</span> <span class="n">surname</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;adams&#39;</span><span class="p">,</span> <span class="s1">&#39;jones&#39;</span><span class="p">,</span> <span class="s1">&#39;brown&#39;</span><span class="p">,</span> <span class="s1">&#39;jones&#39;</span><span class="p">],</span> <span class="n">age</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pk</span><span class="o">.</span><span class="n">insert_many</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">pk</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+</pre></div>
+</div>
+<p>A year has passed… time to update the records</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="p">(</span><span class="n">age</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">age</span><span class="p">:</span> <span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pk</span><span class="o">.</span><span class="n">insert_many</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">pk</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">==</span> <span class="mi">8</span>
+</pre></div>
+</div>
+<p>What???</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt; pk
+&gt;&gt;&gt; &lt;class &#39;pyg.mongo._pk_cursor.mongo_pk_cursor&#39;&gt; for Collection(Database(MongoClient(host=[&#39;localhost:27017&#39;], document_class=dict, tz_aware=False, connect=True), &#39;test&#39;), &#39;test&#39;)
+&gt;&gt;&gt; M{&#39;$and&#39;: [{&quot;_deleted&quot;: {&quot;$exists&quot;: false}}, {&quot;_pk&quot;: {&quot;$eq&quot;: [&quot;name&quot;, &quot;surname&quot;]}}]} None #&lt;---- filter
+&gt;&gt;&gt; documents count: 4
+&gt;&gt;&gt; dict_keys([&#39;_id&#39;, &#39;_obj&#39;, &#39;_pk&#39;, &#39;age&#39;, &#39;name&#39;, &#39;surname&#39;])
+</pre></div>
+</div>
+<p>What we see is that pk only looks at a subset of the total documents in the table: those undeleted and those with _pk equal to [name,surname]. pk provides full audit:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">t</span><span class="p">[::]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dictable</span><span class="p">[</span><span class="mi">8</span> <span class="n">x</span> <span class="mi">6</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_pk</span>                <span class="o">|</span><span class="n">name</span>   <span class="o">|</span><span class="n">age</span><span class="o">|</span><span class="n">_deleted</span>                  <span class="o">|</span><span class="n">_id</span>                     <span class="o">|</span><span class="n">surname</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;surname&#39;</span><span class="p">]</span><span class="o">|</span><span class="n">alan</span>   <span class="o">|</span><span class="mi">2</span>  <span class="o">|</span><span class="kc">None</span>                      <span class="o">|</span><span class="mi">60245</span><span class="n">a5f0466be18483c4ad2</span><span class="o">|</span><span class="n">adams</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;surname&#39;</span><span class="p">]</span><span class="o">|</span><span class="n">alan</span>   <span class="o">|</span><span class="mi">3</span>  <span class="o">|</span><span class="kc">None</span>                      <span class="o">|</span><span class="mi">60245</span><span class="n">a5f0466be18483c4ad3</span><span class="o">|</span><span class="n">jones</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;surname&#39;</span><span class="p">]</span><span class="o">|</span><span class="n">barbara</span><span class="o">|</span><span class="mi">4</span>  <span class="o">|</span><span class="kc">None</span>                      <span class="o">|</span><span class="mi">60245</span><span class="n">a5f0466be18483c4ad4</span><span class="o">|</span><span class="n">brown</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="o">...</span><span class="mi">8</span> <span class="n">rows</span><span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;surname&#39;</span><span class="p">]</span><span class="o">|</span><span class="n">alan</span>   <span class="o">|</span><span class="mi">2</span>  <span class="o">|</span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">10</span> <span class="mi">22</span><span class="p">:</span><span class="mi">13</span><span class="p">:</span><span class="mf">35.242000</span><span class="o">|</span><span class="mi">60245</span><span class="n">a8f0466be18483c4ad7</span><span class="o">|</span><span class="n">jones</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;surname&#39;</span><span class="p">]</span><span class="o">|</span><span class="n">barbara</span><span class="o">|</span><span class="mi">3</span>  <span class="o">|</span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">10</span> <span class="mi">22</span><span class="p">:</span><span class="mi">13</span><span class="p">:</span><span class="mf">35.252000</span><span class="o">|</span><span class="mi">60245</span><span class="n">a8f0466be18483c4ad8</span><span class="o">|</span><span class="n">brown</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;surname&#39;</span><span class="p">]</span><span class="o">|</span><span class="n">chris</span>  <span class="o">|</span><span class="mi">4</span>  <span class="o">|</span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">10</span> <span class="mi">22</span><span class="p">:</span><span class="mi">13</span><span class="p">:</span><span class="mf">35.260000</span><span class="o">|</span><span class="mi">60245</span><span class="n">a8f0466be18483c4ad9</span><span class="o">|</span><span class="n">jones</span>
+</pre></div>
+</div>
+<p>There are obvioursly some small differences on how pk works but broadly, it is just like a normal mongo_cursor with an added filter to zoom onto the records that maintain the primary-key table.</p>
+<ul class="simple">
+<li><p>you cannot insert docs without primary keys all present:</p></li>
+<li><p>the drop() command does not actually delete the documents, they are simply ‘marked’ as deleted.</p></li>
+<li><p>to get from a mongo_pk_cursor to mongo_cursor, simply go pk.raw</p></li>
+</ul>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">pk</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">no_name_or_surname</span> <span class="o">=</span> <span class="s1">&#39;James&#39;</span><span class="p">))</span> <span class="c1"># cannot insert with no PK</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pk</span><span class="o">.</span><span class="n">drop</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">pk</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">pk</span><span class="o">.</span><span class="n">raw</span><span class="p">)</span> <span class="o">==</span> <span class="mi">8</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pyg</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="base.html">pyg.base</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mongo.html">pyg.mongo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timeseries.html">pyg.timeseries</a></li>
+<li class="toctree-l1"><a class="reference internal" href="base_tutorial.html">tutorial: pyg.base</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">tutorial: pyg.mongo</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#q">q</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mongo-cursor">mongo_cursor</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#general-objects-insertion-into-documents">general objects insertion into documents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#document-reading">document reading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#document-writing-to-files">document writing to files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#document-access">document access</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#column-access">column access</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#add-remove-column">add/remove column</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-new-columns">adding new columns:</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mongo-reader-vs-mongo-cursor">mongo_reader vs mongo_cursor</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#mongo-pk-table">mongo_pk_table</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="timeseries_tutorial.html">tutorial: pyg.timeseries</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="base_tutorial.html" title="previous chapter">tutorial: pyg.base</a></li>
+      <li>Next: <a href="timeseries_tutorial.html" title="next chapter">tutorial: pyg.timeseries</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Yoav Git.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.4.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/mongo_tutorial.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

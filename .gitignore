@@ -9,7 +9,11 @@
 **/.pytestcache/**
 **/htmlcov/**
 **/src/pyg/old/**
-**/docs/_build/**
+**/docs/_build/doctrees/**
+**/docs/_build/html/_images/**
+**/docs/_build/html/_sources/**
+**/docs/_build/html/_static/**
+**/docs/_build/html/lab/**
 **/docs/lab/.ipynb_checkpoints/**
 
 # build files

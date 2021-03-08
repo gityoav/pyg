@@ -1,0 +1,200 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tutorial: pyg.base &#8212; pyg 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="tutorial: pyg.mongo" href="mongo_tutorial.html" />
+    <link rel="prev" title="pyg.timeseries" href="timeseries.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="tutorial-pyg-base">
+<h1>tutorial: pyg.base<a class="headerlink" href="#tutorial-pyg-base" title="Permalink to this headline">¶</a></h1>
+<p>pyg.base contains some functionality to make your life easier:</p>
+<ul class="simple">
+<li><p>dt, drange and dt_bump functionality (with calendar) will make your dates manipulation much easier</p></li>
+<li><p>encode/decode of data will allow you to send to json or to MongoDB seemlessly</p></li>
+<li><p>eq, zipper, reducer</p></li>
+<li><p>text utilities</p></li>
+</ul>
+<p>However, there are two areas where pyg.base can really change the way you write code.</p>
+<ul class="simple">
+<li><p>Dict, dictable, perdictable</p></li>
+<li><p>cell</p></li>
+</ul>
+<div class="section" id="dict">
+<h2>Dict<a class="headerlink" href="#dict" title="Permalink to this headline">¶</a></h2>
+<p>There are a few libraries allowing members access of a dict via getattr.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyg</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">yfinance</span> <span class="k">as</span> <span class="nn">yf</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">d</span><span class="o">.</span><span class="n">a</span> <span class="o">==</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>Dict also makes it easier to add new members and remove them</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)(</span><span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)(</span><span class="n">c</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)(</span><span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="nb">dict</span><span class="p">(</span><span class="n">c</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">==</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>But the fun part is when Dict allows ‘access’ to function of its members</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">d</span><span class="p">[</span><span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span><span class="o">+</span><span class="n">b</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="p">(</span><span class="n">c</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span><span class="o">+</span><span class="n">b</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">d</span> <span class="o">==</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This means we can think of a Dict as a container of variables. Consider this code:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">c</span> <span class="o">=</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">d</span> <span class="o">=</span> <span class="n">b</span> <span class="o">+</span> <span class="n">c</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">e</span> <span class="o">=</span> <span class="n">a</span><span class="o">/</span><span class="n">b</span> <span class="o">+</span> <span class="n">d</span><span class="o">/</span><span class="n">c</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">f</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span><span class="o">+</span><span class="n">e</span><span class="p">)</span><span class="o">/</span><span class="n">c</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">f</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">func</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>How can we keep track of our calculations and debug it easily? Consider rewriting this:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">(</span><span class="n">c</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">(</span><span class="n">d</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="n">b</span> <span class="o">+</span> <span class="n">c</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">(</span><span class="n">e</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">d</span> <span class="p">:</span> <span class="n">a</span><span class="o">/</span><span class="n">b</span> <span class="o">+</span> <span class="n">d</span><span class="o">/</span><span class="n">c</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">(</span><span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span><span class="n">d</span><span class="p">,</span><span class="n">e</span><span class="p">:</span> <span class="p">(</span><span class="n">d</span><span class="o">+</span><span class="n">e</span><span class="p">)</span><span class="o">/</span><span class="n">c</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">f</span> <span class="o">==</span> <span class="n">func</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">b</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The nice thing is that we have all the internals of the function exposed too. We are able to separate code and data easily:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">code</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">c</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">d</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="n">b</span> <span class="o">+</span> <span class="n">c</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">e</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">d</span> <span class="p">:</span> <span class="n">a</span><span class="o">/</span><span class="n">b</span> <span class="o">+</span> <span class="n">d</span><span class="o">/</span><span class="n">c</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span><span class="n">d</span><span class="p">,</span><span class="n">e</span><span class="p">:</span> <span class="p">(</span><span class="n">d</span><span class="o">+</span><span class="n">e</span><span class="p">)</span><span class="o">/</span><span class="n">c</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">initial_values</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">final_output</span> <span class="o">=</span> <span class="n">initial_values</span><span class="p">(</span><span class="o">**</span><span class="n">code</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="dictable">
+<h2>dictable<a class="headerlink" href="#dictable" title="Permalink to this headline">¶</a></h2>
+<p>Dict was fun but that if we can run this not just for a single record, but for multiple ones?</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">dictable</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">],</span> <span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>We now run an identical code:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">(</span><span class="o">**</span><span class="n">code</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And get each of the rows evaluated</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dictable</span><span class="p">[</span><span class="mi">3</span> <span class="n">x</span> <span class="mi">6</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">|</span><span class="n">b</span><span class="o">|</span><span class="n">c</span><span class="o">|</span><span class="n">d</span> <span class="o">|</span><span class="n">e</span>                 <span class="o">|</span><span class="n">f</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">1</span><span class="o">|</span><span class="mi">4</span><span class="o">|</span><span class="mi">5</span><span class="o">|</span><span class="mi">9</span> <span class="o">|</span><span class="mf">2.05</span>              <span class="o">|</span><span class="mf">2.21</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2</span><span class="o">|</span><span class="mi">5</span><span class="o">|</span><span class="mi">7</span><span class="o">|</span><span class="mi">12</span><span class="o">|</span><span class="mf">2.1142857142857143</span><span class="o">|</span><span class="mf">2.0163265306122446</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">3</span><span class="o">|</span><span class="mi">6</span><span class="o">|</span><span class="mi">9</span><span class="o">|</span><span class="mi">15</span><span class="o">|</span><span class="mf">2.166666666666667</span> <span class="o">|</span><span class="mf">1.9074074074074074</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pyg</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="base.html">pyg.base</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mongo.html">pyg.mongo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timeseries.html">pyg.timeseries</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">tutorial: pyg.base</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#dict">Dict</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dictable">dictable</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="mongo_tutorial.html">tutorial: pyg.mongo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timeseries_tutorial.html">tutorial: pyg.timeseries</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="timeseries.html" title="previous chapter">pyg.timeseries</a></li>
+      <li>Next: <a href="mongo_tutorial.html" title="next chapter">tutorial: pyg.mongo</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Yoav Git.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.4.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/base_tutorial.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

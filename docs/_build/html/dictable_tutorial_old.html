@@ -1,0 +1,837 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tutorial: dictable &#8212; pyg 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="tutorial-dictable">
+<h1>tutorial: dictable<a class="headerlink" href="#tutorial-dictable" title="Permalink to this headline">¶</a></h1>
+<p>dictable is a table, a collection of iterable records. It is also a dict with each key’s value being a column.
+Why not use a pandas.DataFrame? pd.DataFrame leads a dual life:</p>
+<ul class="simple">
+<li><p>by day an index-based optimized numpy array supporting e.g. timeseries analytics etc.</p></li>
+<li><p>by night, a table with keys supporting filtering, aggregating, pivoting on keys as well as inner/outer joining on keys.</p></li>
+</ul>
+<p>dictable only tries to do the latter. dictable should be thought of as a ‘organiser of research flow’ rather than just an array of primitives.
+In general, each cell will contain timeseries, yield_curves, machine-learning experiments etc.
+The interface is succinct and extremely intuitive, allowing the user to concentrate on logic of the calculations rather than boilerplate.</p>
+<div class="section" id="motivation-dictable-as-an-organiser-of-research-flow">
+<h2>Motivation: dictable as an organiser of research flow<a class="headerlink" href="#motivation-dictable-as-an-organiser-of-research-flow" title="Permalink to this headline">¶</a></h2>
+<p>We start with a simple motivating example. Here is your typical workflow:</p>
+<p>&gt;&gt;&gt;from pyg import <a href="#id1"><span class="problematic" id="id2">*</span></a>; import pandas as pd; import numpy as np
+&gt;&gt;&gt;import yfinance as yf</p>
+<p>&gt;&gt;&gt;symbols = [‘MSFT’, ‘WMT’, ‘TSLA’, ‘AAPL’, ‘BAD_SYMBOL’, ‘C’]
+&gt;&gt;&gt;history = [yf.download(symbol) for symbol in symbols]
+&gt;&gt;&gt;prices = [h[‘Adj Close’] for h in history]
+&gt;&gt;&gt;rtns = [p.diff() for p in prices]
+&gt;&gt;&gt;vols = [r.ewm(30).std() for r in rtns]
+&gt;&gt;&gt;zscores = [r/v for r,v in zip(rtns, vols)]
+&gt;&gt;&gt;zavgs = [z.mean() for z in zscores]</p>
+<p>&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;
+&gt;&gt;&gt;1 Failed download:
+&gt;&gt;&gt;- BAD_SYMBOL: No data found, symbol may be delisted
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed</p>
+<p>&gt;&gt;&gt;zavgs</p>
+<p>&gt;&gt;&gt;[0.06266609901057506,
+&gt;&gt;&gt; 0.04616818011198566,
+&gt;&gt;&gt; 0.06892447978296734,
+&gt;&gt;&gt; 0.053468493365041475,
+&gt;&gt;&gt; nan,
+&gt;&gt;&gt; 0.026970888468862076]</p>
+<p>At this point we ask ourselves: Why do we have a None? Which ticker was it, and when did it go wrong?</p>
+<p>&gt;&gt;&gt;bad_symbols = [s for s, z in zip(symbols, zavgs) if np.isnan(z)]; bad_symbols</p>
+<p>&gt;&gt;&gt;[‘BAD_SYMBOL’]</p>
+<p>Great, how do we remove bad symbols from all our other variables?</p>
+<p>&gt;&gt;&gt;vols = [v for s, v in zip(symbols, vols) if s not in bad_symbols]</p>
+<p>Now we can calculate some ewmas perhaps?</p>
+<p>&gt;&gt;&gt;ewmas = [r.ewm(n).mean()/v for r,v in zip(rtns, vols) for n in [10, 20, 30]]</p>
+<p>&gt;&gt;&gt;bad_ewms = [e for e in ewmas if len(e[~np.isnan(e)]) == 0]; bad_ewms</p>
+<p>&gt;&gt;&gt;[Date
+&gt;&gt;&gt; 1977-01-03   NaN
+&gt;&gt;&gt; 1977-01-04   NaN
+&gt;&gt;&gt; 1977-01-05   NaN
+&gt;&gt;&gt; 1977-01-06   NaN
+&gt;&gt;&gt; 1977-01-07   NaN
+&gt;&gt;&gt;               ..
+&gt;&gt;&gt; 2021-02-09   NaN
+&gt;&gt;&gt; 2021-02-10   NaN
+&gt;&gt;&gt; 2021-02-11   NaN
+&gt;&gt;&gt; 2021-02-12   NaN
+&gt;&gt;&gt; 2021-02-16   NaN
+&gt;&gt;&gt; Name: Adj Close, Length: 11127, dtype: float64,
+&gt;&gt;&gt; Date
+&gt;&gt;&gt; 1977-01-03   NaN
+&gt;&gt;&gt; 1977-01-04   NaN
+&gt;&gt;&gt; 1977-01-05   NaN
+&gt;&gt;&gt; 1977-01-06   NaN
+&gt;&gt;&gt; 1977-01-07   NaN
+&gt;&gt;&gt;               ..
+&gt;&gt;&gt; 2021-02-09   NaN
+&gt;&gt;&gt; 2021-02-10   NaN
+&gt;&gt;&gt; 2021-02-11   NaN
+&gt;&gt;&gt; 2021-02-12   NaN
+&gt;&gt;&gt; 2021-02-16   NaN
+&gt;&gt;&gt; Name: Adj Close, Length: 11127, dtype: float64,
+&gt;&gt;&gt; Date
+&gt;&gt;&gt; 1977-01-03   NaN
+&gt;&gt;&gt; 1977-01-04   NaN
+&gt;&gt;&gt; 1977-01-05   NaN
+&gt;&gt;&gt; 1977-01-06   NaN
+&gt;&gt;&gt; 1977-01-07   NaN
+&gt;&gt;&gt;               ..
+&gt;&gt;&gt; 2021-02-09   NaN
+&gt;&gt;&gt; 2021-02-10   NaN
+&gt;&gt;&gt; 2021-02-11   NaN
+&gt;&gt;&gt; 2021-02-12   NaN
+&gt;&gt;&gt; 2021-02-16   NaN
+&gt;&gt;&gt; Name: Adj Close, Length: 11127, dtype: float64]</p>
+<p>What went wrong? We forgot to remove bad data from rtns as well as from vols. Oh, and ewmas[0], what is the symbol associated with it?</p>
+<p>If you ever dealt with real data, the mess described above must be familiar</p>
+</div>
+<div class="section" id="same-code-in-dictable">
+<h2>Same code, in dictable<a class="headerlink" href="#same-code-in-dictable" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;from pyg import *
+&gt;&gt;&gt;import yfinance as yf
+&gt;&gt;&gt;s = dictable(symbol = [‘MSFT’, ‘WMT’, ‘TSLA’, ‘AAPL’, ‘BAD_SYMBOL’, ‘C’])
+&gt;&gt;&gt;s = s(history = lambda symbol: yf.download(symbol))
+&gt;&gt;&gt;s = s(price = lambda history: history[‘Adj Close’])
+&gt;&gt;&gt;s = s(rtn = lambda price: price.diff())
+&gt;&gt;&gt;s = s(vol = lambda rtn: rtn.ewm(30).std())
+&gt;&gt;&gt;s = s(zscore = lambda rtn, vol: rtn/vol)
+&gt;&gt;&gt;s = s(zavg = lambda zscore: zscore.mean())</p>
+<p>&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed
+&gt;&gt;&gt;
+&gt;&gt;&gt;1 Failed download:
+&gt;&gt;&gt;- BAD_SYMBOL: No data found, symbol may be delisted
+&gt;&gt;&gt;[<strong>*******************100%*********************</strong>]  1 of 1 completed</p>
+<p>dictable <strong>s</strong> contains all our data.</p>
+<ul class="simple">
+<li><p>each row contains all the variables associated with a specific symbol</p></li>
+<li><p>each column corresponds to a variable</p></li>
+<li><p>adding a new variable is declarative and free of boiler-plate loop and zip</p></li>
+</ul>
+<p>&gt;&gt;&gt;s</p>
+<p>&gt;&gt;&gt;dictable[6 x 7]
+&gt;&gt;&gt;symbol    <a href="#id913"><span class="problematic" id="id914">|history                                           |price                                      |rtn                                        |vol
+&gt;&gt;&gt;MSFT      |                  Open        High         Low    |Date                                       |Date                                       |Date
+&gt;&gt;&gt;          |Date                                              |1986-03-13      0.061893                   |1986-03-13         NaN                     |1986-03-13         NaN
+&gt;&gt;&gt;          |1986-03-13    0.088542    0.101563    0.088542    |1986-03-14      0.064103                   |1986-03-14    0.002210                     |1986-03-14         NaN
+&gt;&gt;&gt;          |1986-03-14    0.097222    0.102431    0.097222    |1986-03-17      0.065209                   |1986-03-17    0.001106                     |1986-03-17    0.000781
+&gt;&gt;&gt;          |1986-03-17    0.100694    0.103299    0.100694    |1986-03-18      0.063551                   |1986-03-18   -0.001658                     |1986-03-18    0.002001
+&gt;&gt;&gt;WMT       |                  Open        High         Low    |Date                                       |Date                                       |Date
+&gt;&gt;&gt;          |Date                                              |1972-08-25      0.037027                   |1972-08-25         NaN                     |1972-08-25         NaN
+&gt;&gt;&gt;          |1972-08-25    0.063477    0.064697    0.063477    |1972-08-28      0.036887                   |1972-08-28   -0.000140                     |1972-08-28         NaN
+&gt;&gt;&gt;          |1972-08-28    0.064453    0.064941    0.064209    |1972-08-29      0.036466                   |1972-08-29   -0.000421                     |1972-08-29    0.000198
+&gt;&gt;&gt;          |1972-08-29    0.063965    0.063965    0.063477    |1972-08-30      0.036466                   |1972-08-30    0.000000                     |1972-08-30    0.000215
+&gt;&gt;&gt;TSLA      |                  Open        High         Low    |Date                                       |Date                                       |Date
+&gt;&gt;&gt;          |Date                                              |2010-06-29      4.778000                   |2010-06-29          NaN                    |2010-06-29          NaN
+&gt;&gt;&gt;          |2010-06-29    3.800000    5.000000    3.508000    |2010-06-30      4.766000                   |2010-06-30    -0.012000                    |2010-06-30          NaN
+&gt;&gt;&gt;          |2010-06-30    5.158000    6.084000    4.660000    |2010-07-01      4.392000                   |2010-07-01    -0.374000                    |2010-07-01     0.255972
+&gt;&gt;&gt;          |2010-07-01    5.000000    5.184000    4.054000    |2010-07-02      3.840000                   |2010-07-02    -0.552000                    |2010-07-02     0.274164
+&gt;&gt;&gt;AAPL      |                  Open        High         Low    |Date                                       |Date                                       |Date
+&gt;&gt;&gt;          |Date                                              |1980-12-12      0.100922                   |1980-12-12         NaN                     |1980-12-12         NaN
+&gt;&gt;&gt;          |1980-12-12    0.128348    0.128906    0.128348    |1980-12-15      0.095657                   |1980-12-15   -0.005265                     |1980-12-15         NaN
+&gt;&gt;&gt;          |1980-12-15    0.122210    0.122210    0.121652    |1980-12-16      0.088636                   |1980-12-16   -0.007021                     |1980-12-16    0.001242
+&gt;&gt;&gt;          |1980-12-16    0.113281    0.113281    0.112723    |1980-12-17      0.090830                   |1980-12-17    0.002194                     |1980-12-17    0.004938
+&gt;&gt;&gt;BAD_SYMBOL|Empty DataFrame                                   |Series([], Name: Adj Close, dtype: float64)|Series([], Name: Adj Close, dtype: float64)|Series([], Name: Adj Close, dtype: float64)
+&gt;&gt;&gt;          |Columns: [Open, High, Low, Close, Adj Close, Volum|</span></a>                                           |                                           |
+&gt;&gt;&gt;          <a href="#id3"><span class="problematic" id="id4">|</span></a>Index: []                                         |                                           |                                           |
+&gt;&gt;&gt;C         |                 Open       High        Low      C|Date                                       <a href="#id5"><span class="problematic" id="id6">|</span></a>Date                                       <a href="#id7"><span class="problematic" id="id8">|</span></a>Date
+&gt;&gt;&gt;          <a href="#id9"><span class="problematic" id="id10">|</span></a>Date                                              <a href="#id11"><span class="problematic" id="id12">|</span></a>1977-01-03     7.927145                    <a href="#id13"><span class="problematic" id="id14">|</span></a>1977-01-03         NaN                     <a href="#id15"><span class="problematic" id="id16">|</span></a>1977-01-03         NaN
+&gt;&gt;&gt;          <a href="#id17"><span class="problematic" id="id18">|</span></a>1977-01-03  16.133125  16.236876  16.133125  16.23|1977-01-04     7.952467                    <a href="#id19"><span class="problematic" id="id20">|</span></a>1977-01-04    0.025321                     <a href="#id21"><span class="problematic" id="id22">|</span></a>1977-01-04         NaN
+&gt;&gt;&gt;          <a href="#id23"><span class="problematic" id="id24">|</span></a>1977-01-04  16.236876  16.288750  16.184999  16.28|1977-01-05     7.901817                    <a href="#id25"><span class="problematic" id="id26">|</span></a>1977-01-05   -0.050650                     <a href="#id27"><span class="problematic" id="id28">|</span></a>1977-01-05    0.053720
+&gt;&gt;&gt;          <a href="#id29"><span class="problematic" id="id30">|</span></a>1977-01-05  16.288750  16.288750  16.133125  16.18|1977-01-06     7.851166                    <a href="#id31"><span class="problematic" id="id32">|</span></a>1977-01-06   -0.050652                     <a href="#id33"><span class="problematic" id="id34">|</span></a>1977-01-06    0.043500
+&gt;&gt;&gt;
+&gt;&gt;&gt;zscore                                     <a href="#id35"><span class="problematic" id="id36">|</span></a>zavg
+&gt;&gt;&gt;Date                                       <a href="#id37"><span class="problematic" id="id38">|</span></a>0.06266609901057506
+&gt;&gt;&gt;1986-03-13         NaN                     |
+&gt;&gt;&gt;1986-03-14         NaN                     |
+&gt;&gt;&gt;1986-03-17    1.415759                     |
+&gt;&gt;&gt;1986-03-18   -0.828591                     |
+&gt;&gt;&gt;Date                                       <a href="#id39"><span class="problematic" id="id40">|</span></a>0.04616818011198566
+&gt;&gt;&gt;1972-08-25         NaN                     |
+&gt;&gt;&gt;1972-08-28         NaN                     |
+&gt;&gt;&gt;1972-08-29   -2.121414                     |
+&gt;&gt;&gt;1972-08-30    0.000000                     |
+&gt;&gt;&gt;Date                                       <a href="#id41"><span class="problematic" id="id42">|</span></a>0.06892447978296734
+&gt;&gt;&gt;2010-06-29         NaN                     |
+&gt;&gt;&gt;2010-06-30         NaN                     |
+&gt;&gt;&gt;2010-07-01   -1.461094                     |
+&gt;&gt;&gt;2010-07-02   -2.013394                     |
+&gt;&gt;&gt;Date                                       <a href="#id43"><span class="problematic" id="id44">|</span></a>0.053468493365041475
+&gt;&gt;&gt;1980-12-12         NaN                     |
+&gt;&gt;&gt;1980-12-15         NaN                     |
+&gt;&gt;&gt;1980-12-16   -5.654838                     |
+&gt;&gt;&gt;1980-12-17    0.444263                     |
+&gt;&gt;&gt;Series([], Name: Adj Close, dtype: float64)|nan
+&gt;&gt;&gt;Date                                       <a href="#id45"><span class="problematic" id="id46">|</span></a>0.026970888468862076
+&gt;&gt;&gt;1977-01-03         NaN                     |
+&gt;&gt;&gt;1977-01-04         NaN                     |
+&gt;&gt;&gt;1977-01-05   -0.942850                     |
+&gt;&gt;&gt;1977-01-06   -1.164416                     |</p>
+<p>&gt;&gt;&gt;s.zavg</p>
+<p>&gt;&gt;&gt;[0.06266609901057506,
+&gt;&gt;&gt; 0.04616818011198566,
+&gt;&gt;&gt; 0.06892447978296734,
+&gt;&gt;&gt; 0.053468493365041475,
+&gt;&gt;&gt; nan,
+&gt;&gt;&gt; 0.026970888468862076]</p>
+<div class="section" id="oh-no-we-have-a-bad-symbol-how-do-we-remove-it">
+<h3>Oh, no, we have a bad symbol, how do we remove it?<a class="headerlink" href="#oh-no-we-have-a-bad-symbol-how-do-we-remove-it" title="Permalink to this headline">¶</a></h3>
+<p>&gt;&gt;&gt;s = s.exc(zavg = np.nan); s.zavg</p>
+<p>&gt;&gt;&gt;[0.06266609901057506,
+&gt;&gt;&gt; 0.04616818011198566,
+&gt;&gt;&gt; 0.06892447978296734,
+&gt;&gt;&gt; 0.053468493365041475,
+&gt;&gt;&gt; 0.026970888468862076]</p>
+</div>
+<div class="section" id="now-if-we-want-to-calculate-ewma-s-per-symbol-and-window">
+<h3>Now if we want to calculate ewma’s per symbol and window…<a class="headerlink" href="#now-if-we-want-to-calculate-ewma-s-per-symbol-and-window" title="Permalink to this headline">¶</a></h3>
+<p>The table is now keyed on two values: symbol and window n, so we create a bigger table using cross product:</p>
+<p>&gt;&gt;&gt;sn = s * dict(n = [10,20,30]) ## each row is now unique per symbol and window n</p>
+<p>&gt;&gt;&gt;sn = sn(ewma = lambda rtn, n, vol: rtn.ewm(n).mean()/vol)</p>
+<p>And here is Citibank’s three ewma…</p>
+<p>&gt;&gt;&gt;sn.inc(symbol = ‘C’)[[‘n’, ‘ewma’]]</p>
+<p>&gt;&gt;&gt;dictable[3 x 2]
+&gt;&gt;&gt;n <a href="#id47"><span class="problematic" id="id48">|</span></a>ewma
+&gt;&gt;&gt;10|Date
+&gt;&gt;&gt;  <a href="#id49"><span class="problematic" id="id50">|</span></a>1977-01-03         NaN
+&gt;&gt;&gt;  <a href="#id51"><span class="problematic" id="id52">|</span></a>1977-01-04         NaN
+&gt;&gt;&gt;  <a href="#id53"><span class="problematic" id="id54">|</span></a>1977-01-05   -0.269415
+&gt;&gt;&gt;  <a href="#id55"><span class="problematic" id="id56">|</span></a>1977-01-06   -0.636750
+&gt;&gt;&gt;20|Date
+&gt;&gt;&gt;  <a href="#id57"><span class="problematic" id="id58">|</span></a>1977-01-03         NaN
+&gt;&gt;&gt;  <a href="#id59"><span class="problematic" id="id60">|</span></a>1977-01-04         NaN
+&gt;&gt;&gt;  <a href="#id61"><span class="problematic" id="id62">|</span></a>1977-01-05   -0.252990
+&gt;&gt;&gt;  <a href="#id63"><span class="problematic" id="id64">|</span></a>1977-01-06   -0.610388
+&gt;&gt;&gt;30|Date
+&gt;&gt;&gt;  <a href="#id65"><span class="problematic" id="id66">|</span></a>1977-01-03         NaN
+&gt;&gt;&gt;  <a href="#id67"><span class="problematic" id="id68">|</span></a>1977-01-04         NaN
+&gt;&gt;&gt;  <a href="#id69"><span class="problematic" id="id70">|</span></a>1977-01-05   -0.247336
+&gt;&gt;&gt;  <a href="#id71"><span class="problematic" id="id72">|</span></a>1977-01-06   -0.601208</p>
+<p>Or here is a pivot table of the average of each ewma per symbol and window… Note that again, we can access functions of variables and not just the existing keys in the dictable</p>
+<p>&gt;&gt;&gt;sn.pivot(‘symbol’, ‘n’, lambda ewma: ewma.mean())</p>
+<p>&gt;&gt;&gt;dictable[5 x 4]
+&gt;&gt;&gt;symbol|10                    <a href="#id73"><span class="problematic" id="id74">|</span></a>20                    <a href="#id75"><span class="problematic" id="id76">|</span></a>30
+&gt;&gt;&gt;AAPL  <a href="#id77"><span class="problematic" id="id78">|</span></a>[0.052114557647735205]|[0.04834504485402777] <a href="#id79"><span class="problematic" id="id80">|</span></a>[0.04473715970587736]
+&gt;&gt;&gt;C     <a href="#id81"><span class="problematic" id="id82">|</span></a>[0.027359087883298057]|[0.026329253030089858]|[0.025023136503038484]
+&gt;&gt;&gt;MSFT  <a href="#id83"><span class="problematic" id="id84">|</span></a>[0.061207490383409814]|[0.05878420408925024] <a href="#id85"><span class="problematic" id="id86">|</span></a>[0.056610463304245004]
+&gt;&gt;&gt;TSLA  <a href="#id87"><span class="problematic" id="id88">|</span></a>[0.05904666979597103] <a href="#id89"><span class="problematic" id="id90">|</span></a>[0.051764884938557604]|[0.04624799408864969]
+&gt;&gt;&gt;WMT   <a href="#id91"><span class="problematic" id="id92">|</span></a>[0.045582844324194086]|[0.04422154501896349] <a href="#id93"><span class="problematic" id="id94">|</span></a>[0.042813467452124124]</p>
+</div>
+</div>
+</div>
+<div class="section" id="dictable-functionality">
+<h1>dictable functionality<a class="headerlink" href="#dictable-functionality" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="construction">
+<h2>construction<a class="headerlink" href="#construction" title="Permalink to this headline">¶</a></h2>
+<p>dictable is quite flexible on constuctions.</p>
+<p>&gt;&gt;&gt;d = dictable(a = [1,2,3,4], b = [‘a’, ‘b’, ‘c’, ‘d’]); d</p>
+<p>&gt;&gt;&gt;dictable[4 x 2]
+&gt;&gt;&gt;a|b
+&gt;&gt;&gt;1|a
+&gt;&gt;&gt;2|b
+&gt;&gt;&gt;3|c
+&gt;&gt;&gt;4|d</p>
+<p>&gt;&gt;&gt;d = dictable(dict(a = [1,2,3,4], b = [‘a’, ‘b’, ‘c’, ‘d’]), symbol = [‘MSFT’, ‘AAPL’, ‘APA’, ‘MMM’], exchange = ‘NYSE’); d</p>
+<p>&gt;&gt;&gt;dictable[4 x 4]
+&gt;&gt;&gt;symbol|exchange|a|b
+&gt;&gt;&gt;MSFT  <a href="#id95"><span class="problematic" id="id96">|</span></a>NYSE    <a href="#id97"><span class="problematic" id="id98">|</span></a>1|a
+&gt;&gt;&gt;AAPL  <a href="#id99"><span class="problematic" id="id100">|</span></a>NYSE    <a href="#id101"><span class="problematic" id="id102">|</span></a>2|b
+&gt;&gt;&gt;APA   <a href="#id103"><span class="problematic" id="id104">|</span></a>NYSE    <a href="#id105"><span class="problematic" id="id106">|</span></a>3|c
+&gt;&gt;&gt;MMM   <a href="#id107"><span class="problematic" id="id108">|</span></a>NYSE    <a href="#id109"><span class="problematic" id="id110">|</span></a>4|d</p>
+<p>&gt;&gt;&gt;df = pd.DataFrame(d)</p>
+<p>&gt;&gt;&gt;d = dictable(df); d</p>
+<p>&gt;&gt;&gt;dictable[4 x 4]
+&gt;&gt;&gt;symbol|exchange|a|b
+&gt;&gt;&gt;MSFT  <a href="#id111"><span class="problematic" id="id112">|</span></a>NYSE    <a href="#id113"><span class="problematic" id="id114">|</span></a>1|a
+&gt;&gt;&gt;AAPL  <a href="#id115"><span class="problematic" id="id116">|</span></a>NYSE    <a href="#id117"><span class="problematic" id="id118">|</span></a>2|b
+&gt;&gt;&gt;APA   <a href="#id119"><span class="problematic" id="id120">|</span></a>NYSE    <a href="#id121"><span class="problematic" id="id122">|</span></a>3|c
+&gt;&gt;&gt;MMM   <a href="#id123"><span class="problematic" id="id124">|</span></a>NYSE    <a href="#id125"><span class="problematic" id="id126">|</span></a>4|d</p>
+<p>&gt;&gt;&gt;d = dictable([(1,3), (2,4), (3,5)], [‘a’, ‘b’]); d # construction from</p>
+<p>&gt;&gt;&gt;dictable[3 x 2]
+&gt;&gt;&gt;a|b
+&gt;&gt;&gt;1|3
+&gt;&gt;&gt;2|4
+&gt;&gt;&gt;3|5</p>
+<p>&gt;&gt;&gt;d = dictable([dict(a = 1, b = 3), dict(a = 2, b = 4, d = ‘new column’), dict(a = 3, b = 5, c = ‘also here’)]); d # construction from records, mismatching on keys is fine</p>
+<p>&gt;&gt;&gt;dictable[3 x 4]
+&gt;&gt;&gt;b|c        <a href="#id127"><span class="problematic" id="id128">|</span></a>a|d
+&gt;&gt;&gt;3|None     <a href="#id129"><span class="problematic" id="id130">|</span></a>1|None
+&gt;&gt;&gt;4|None     <a href="#id131"><span class="problematic" id="id132">|</span></a>2|new column
+&gt;&gt;&gt;5|also here|3|None</p>
+<p>&gt;&gt;&gt;d = dictable(read_csv(‘d:/dropbox/yoav/python/pyg/docs/constituents_csv.csv’)); d = d[:6]; d</p>
+<p>&gt;&gt;&gt;dictable[6 x 3]
+&gt;&gt;&gt;Symbol|Name               <a href="#id133"><span class="problematic" id="id134">|</span></a>Sector
+&gt;&gt;&gt;MMM   <a href="#id135"><span class="problematic" id="id136">|</span></a>3M Company         <a href="#id137"><span class="problematic" id="id138">|</span></a>Industrials
+&gt;&gt;&gt;AOS   <a href="#id139"><span class="problematic" id="id140">|</span></a>A.O. Smith Corp    <a href="#id141"><span class="problematic" id="id142">|</span></a>Industrials
+&gt;&gt;&gt;ABT   <a href="#id143"><span class="problematic" id="id144">|</span></a>Abbott Laboratories|Health Care
+&gt;&gt;&gt;ABBV  <a href="#id145"><span class="problematic" id="id146">|</span></a>AbbVie Inc.        <a href="#id147"><span class="problematic" id="id148">|</span></a>Health Care
+&gt;&gt;&gt;ABMD  <a href="#id149"><span class="problematic" id="id150">|</span></a>ABIOMED Inc        <a href="#id151"><span class="problematic" id="id152">|</span></a>Health Care
+&gt;&gt;&gt;ACN   <a href="#id153"><span class="problematic" id="id154">|</span></a>Accenture plc      <a href="#id155"><span class="problematic" id="id156">|</span></a>Information Technology</p>
+</div>
+<div class="section" id="row-access">
+<h2>row access<a class="headerlink" href="#row-access" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;d[0] #returns a record</p>
+<p>&gt;&gt;&gt;{‘Symbol’: ‘MMM’, ‘Name’: ‘3M Company’, ‘Sector’: ‘Industrials’}</p>
+<p>&gt;&gt;&gt;d[:2] ## subset using slice</p>
+<p>&gt;&gt;&gt;dictable[2 x 3]
+&gt;&gt;&gt;Symbol|Name           <a href="#id157"><span class="problematic" id="id158">|</span></a>Sector
+&gt;&gt;&gt;MMM   <a href="#id159"><span class="problematic" id="id160">|</span></a>3M Company     <a href="#id161"><span class="problematic" id="id162">|</span></a>Industrials
+&gt;&gt;&gt;AOS   <a href="#id163"><span class="problematic" id="id164">|</span></a>A.O. Smith Corp|Industrials</p>
+<p>&gt;&gt;&gt;for row in d: # iteration is by row
+&gt;&gt;&gt;    print(row)</p>
+<p>&gt;&gt;&gt;{‘Symbol’: ‘MMM’, ‘Name’: ‘3M Company’, ‘Sector’: ‘Industrials’}
+&gt;&gt;&gt;{‘Symbol’: ‘AOS’, ‘Name’: ‘A.O. Smith Corp’, ‘Sector’: ‘Industrials’}
+&gt;&gt;&gt;{‘Symbol’: ‘ABT’, ‘Name’: ‘Abbott Laboratories’, ‘Sector’: ‘Health Care’}
+&gt;&gt;&gt;{‘Symbol’: ‘ABBV’, ‘Name’: ‘AbbVie Inc.’, ‘Sector’: ‘Health Care’}
+&gt;&gt;&gt;{‘Symbol’: ‘ABMD’, ‘Name’: ‘ABIOMED Inc’, ‘Sector’: ‘Health Care’}
+&gt;&gt;&gt;{‘Symbol’: ‘ACN’, ‘Name’: ‘Accenture plc’, ‘Sector’: ‘Information Technology’}</p>
+</div>
+<div class="section" id="column-access">
+<h2>column access<a class="headerlink" href="#column-access" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;d.Name</p>
+<p>&gt;&gt;&gt;[‘3M Company’,
+&gt;&gt;&gt; ‘A.O. Smith Corp’,
+&gt;&gt;&gt; ‘Abbott Laboratories’,
+&gt;&gt;&gt; ‘AbbVie Inc.’,
+&gt;&gt;&gt; ‘ABIOMED Inc’,
+&gt;&gt;&gt; ‘Accenture plc’]</p>
+<p>&gt;&gt;&gt;d[‘Name’]</p>
+<p>&gt;&gt;&gt;[‘3M Company’,
+&gt;&gt;&gt; ‘A.O. Smith Corp’,
+&gt;&gt;&gt; ‘Abbott Laboratories’,
+&gt;&gt;&gt; ‘AbbVie Inc.’,
+&gt;&gt;&gt; ‘ABIOMED Inc’,
+&gt;&gt;&gt; ‘Accenture plc’]</p>
+<p>&gt;&gt;&gt;d[‘Name’, ‘Sector’]</p>
+<p>&gt;&gt;&gt;[(‘3M Company’, ‘Industrials’),
+&gt;&gt;&gt; (‘A.O. Smith Corp’, ‘Industrials’),
+&gt;&gt;&gt; (‘Abbott Laboratories’, ‘Health Care’),
+&gt;&gt;&gt; (‘AbbVie Inc.’, ‘Health Care’),
+&gt;&gt;&gt; (‘ABIOMED Inc’, ‘Health Care’),
+&gt;&gt;&gt; (‘Accenture plc’, ‘Information Technology’)]</p>
+<p>&gt;&gt;&gt;d[[‘Name’, ‘Sector’]]</p>
+<p>&gt;&gt;&gt;dictable[6 x 2]
+&gt;&gt;&gt;Name               <a href="#id165"><span class="problematic" id="id166">|</span></a>Sector
+&gt;&gt;&gt;3M Company         <a href="#id167"><span class="problematic" id="id168">|</span></a>Industrials
+&gt;&gt;&gt;A.O. Smith Corp    <a href="#id169"><span class="problematic" id="id170">|</span></a>Industrials
+&gt;&gt;&gt;Abbott Laboratories|Health Care
+&gt;&gt;&gt;AbbVie Inc.        <a href="#id171"><span class="problematic" id="id172">|</span></a>Health Care
+&gt;&gt;&gt;ABIOMED Inc        <a href="#id173"><span class="problematic" id="id174">|</span></a>Health Care
+&gt;&gt;&gt;Accenture plc      <a href="#id175"><span class="problematic" id="id176">|</span></a>Information Technology</p>
+<div class="section" id="d-is-a-dict-so-supports-the-usual-keys-values-and-items">
+<h3>d is a dict so supports the usual keys(), values() and items():<a class="headerlink" href="#d-is-a-dict-so-supports-the-usual-keys-values-and-items" title="Permalink to this headline">¶</a></h3>
+<p>&gt;&gt;&gt;for key, column in d.items():
+&gt;&gt;&gt;    print(key, ‘:’, column)</p>
+<p>&gt;&gt;&gt;Symbol : [‘MMM’, ‘AOS’, ‘ABT’, ‘ABBV’, ‘ABMD’, ‘ACN’]
+&gt;&gt;&gt;Name : [‘3M Company’, ‘A.O. Smith Corp’, ‘Abbott Laboratories’, ‘AbbVie Inc.’, ‘ABIOMED Inc’, ‘Accenture plc’]
+&gt;&gt;&gt;Sector : [‘Industrials’, ‘Industrials’, ‘Health Care’, ‘Health Care’, ‘Health Care’, ‘Information Technology’]</p>
+<p>access via <strong>function</strong> of variables is also supported</p>
+<p>&gt;&gt;&gt;d[lambda Symbol, Sector: ‘%s, %s’%(Symbol, Sector)]</p>
+<p>&gt;&gt;&gt;[‘MMM, Industrials’,
+&gt;&gt;&gt; ‘AOS, Industrials’,
+&gt;&gt;&gt; ‘ABT, Health Care’,
+&gt;&gt;&gt; ‘ABBV, Health Care’,
+&gt;&gt;&gt; ‘ABMD, Health Care’,
+&gt;&gt;&gt; ‘ACN, Information Technology’]</p>
+</div>
+<div class="section" id="column-and-row-access-are-commutative">
+<h3>column and row access are commutative<a class="headerlink" href="#column-and-row-access-are-commutative" title="Permalink to this headline">¶</a></h3>
+<p>&gt;&gt;&gt;assert d[0].Name == d.Name[0] == ‘3M Company’
+&gt;&gt;&gt;assert d[0][lambda Symbol, Sector: ‘%s, %s’%(Symbol, Sector)] == d[lambda Symbol, Sector: ‘%s, %s’%(Symbol, Sector)][0] == ‘MMM, Industrials’
+&gt;&gt;&gt;assert d[0][‘Name’] == d[‘Name’][0]
+&gt;&gt;&gt;assert d[:2][‘Name’, ‘Sector’] == d[‘Name’, ‘Sector’][:2]
+&gt;&gt;&gt;assert d[:2][[‘Name’, ‘Sector’]] == d[[‘Name’, ‘Sector’]][:2]</p>
+</div>
+</div>
+<div class="section" id="adding-records">
+<h2>adding records<a class="headerlink" href="#adding-records" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;d = dictable(name = [‘alan’, ‘barbara’, ‘chris’], surname = [‘abramson’, ‘brown’, ‘cohen’], age = [1,2,3])</p>
+<p>&gt;&gt;&gt;d + dict(name = ‘david’, surname = ‘donaldson’, age = 4) ## adding a single record</p>
+<p>&gt;&gt;&gt;dictable[4 x 3]
+&gt;&gt;&gt;age|name   <a href="#id177"><span class="problematic" id="id178">|</span></a>surname
+&gt;&gt;&gt;1  <a href="#id179"><span class="problematic" id="id180">|</span></a>alan   <a href="#id181"><span class="problematic" id="id182">|</span></a>abramson
+&gt;&gt;&gt;2  <a href="#id183"><span class="problematic" id="id184">|</span></a>barbara|brown
+&gt;&gt;&gt;3  <a href="#id185"><span class="problematic" id="id186">|</span></a>chris  <a href="#id187"><span class="problematic" id="id188">|</span></a>cohen
+&gt;&gt;&gt;4  <a href="#id189"><span class="problematic" id="id190">|</span></a>david  <a href="#id191"><span class="problematic" id="id192">|</span></a>donaldson</p>
+<p>&gt;&gt;&gt;d + [dict(name = ‘david’, surname = ‘donaldson’, age = 4), dict(name = ‘evan’, surname = ‘emmerson’, age = 5)]</p>
+<p>&gt;&gt;&gt;dictable[5 x 3]
+&gt;&gt;&gt;age|name   <a href="#id193"><span class="problematic" id="id194">|</span></a>surname
+&gt;&gt;&gt;1  <a href="#id195"><span class="problematic" id="id196">|</span></a>alan   <a href="#id197"><span class="problematic" id="id198">|</span></a>abramson
+&gt;&gt;&gt;2  <a href="#id199"><span class="problematic" id="id200">|</span></a>barbara|brown
+&gt;&gt;&gt;3  <a href="#id201"><span class="problematic" id="id202">|</span></a>chris  <a href="#id203"><span class="problematic" id="id204">|</span></a>cohen
+&gt;&gt;&gt;4  <a href="#id205"><span class="problematic" id="id206">|</span></a>david  <a href="#id207"><span class="problematic" id="id208">|</span></a>donaldson
+&gt;&gt;&gt;5  <a href="#id209"><span class="problematic" id="id210">|</span></a>evan   <a href="#id211"><span class="problematic" id="id212">|</span></a>emmerson</p>
+<p>&gt;&gt;&gt;d + dict(name = [‘david’, ‘evan’], surname = [‘donaldson’, ‘emmerson’], age = [4,5])</p>
+<p>&gt;&gt;&gt;dictable[5 x 3]
+&gt;&gt;&gt;age|name   <a href="#id213"><span class="problematic" id="id214">|</span></a>surname
+&gt;&gt;&gt;1  <a href="#id215"><span class="problematic" id="id216">|</span></a>alan   <a href="#id217"><span class="problematic" id="id218">|</span></a>abramson
+&gt;&gt;&gt;2  <a href="#id219"><span class="problematic" id="id220">|</span></a>barbara|brown
+&gt;&gt;&gt;3  <a href="#id221"><span class="problematic" id="id222">|</span></a>chris  <a href="#id223"><span class="problematic" id="id224">|</span></a>cohen
+&gt;&gt;&gt;4  <a href="#id225"><span class="problematic" id="id226">|</span></a>david  <a href="#id227"><span class="problematic" id="id228">|</span></a>donaldson
+&gt;&gt;&gt;5  <a href="#id229"><span class="problematic" id="id230">|</span></a>evan   <a href="#id231"><span class="problematic" id="id232">|</span></a>emmerson</p>
+<p>&gt;&gt;&gt;d + pd.DataFrame(dict(name = [‘david’, ‘evan’], surname = [‘donaldson’, ‘emmerson’], age = [4,5]))</p>
+<p>&gt;&gt;&gt;dictable[5 x 3]
+&gt;&gt;&gt;age|name   <a href="#id233"><span class="problematic" id="id234">|</span></a>surname
+&gt;&gt;&gt;1  <a href="#id235"><span class="problematic" id="id236">|</span></a>alan   <a href="#id237"><span class="problematic" id="id238">|</span></a>abramson
+&gt;&gt;&gt;2  <a href="#id239"><span class="problematic" id="id240">|</span></a>barbara|brown
+&gt;&gt;&gt;3  <a href="#id241"><span class="problematic" id="id242">|</span></a>chris  <a href="#id243"><span class="problematic" id="id244">|</span></a>cohen
+&gt;&gt;&gt;4  <a href="#id245"><span class="problematic" id="id246">|</span></a>david  <a href="#id247"><span class="problematic" id="id248">|</span></a>donaldson
+&gt;&gt;&gt;5  <a href="#id249"><span class="problematic" id="id250">|</span></a>evan   <a href="#id251"><span class="problematic" id="id252">|</span></a>emmerson</p>
+</div>
+<div class="section" id="adding-modifying-columns">
+<h2>adding/modifying columns<a class="headerlink" href="#adding-modifying-columns" title="Permalink to this headline">¶</a></h2>
+<p>You can add a column or a constant by simply calling the dictable with the values:</p>
+<p>&gt;&gt;&gt;d(gender = [‘m’, ‘f’, ‘m’])(school = ‘St Paul’)</p>
+<p>&gt;&gt;&gt;dictable[3 x 5]
+&gt;&gt;&gt;name   <a href="#id253"><span class="problematic" id="id254">|</span></a>surname <a href="#id255"><span class="problematic" id="id256">|</span></a>age|gender|school
+&gt;&gt;&gt;alan   <a href="#id257"><span class="problematic" id="id258">|</span></a>abramson|1  <a href="#id259"><span class="problematic" id="id260">|</span></a>m     <a href="#id261"><span class="problematic" id="id262">|</span></a>St Paul
+&gt;&gt;&gt;barbara|brown   <a href="#id263"><span class="problematic" id="id264">|</span></a>2  <a href="#id265"><span class="problematic" id="id266">|</span></a>f     <a href="#id267"><span class="problematic" id="id268">|</span></a>St Paul
+&gt;&gt;&gt;chris  <a href="#id269"><span class="problematic" id="id270">|</span></a>cohen   <a href="#id271"><span class="problematic" id="id272">|</span></a>3  <a href="#id273"><span class="problematic" id="id274">|</span></a>m     <a href="#id275"><span class="problematic" id="id276">|</span></a>St Paul</p>
+<p>More interestingly, it can be a callable function using the other variables…</p>
+<p>&gt;&gt;&gt;d = d(initials = lambda name, surname: name[0] + surname[0]); d</p>
+<p>&gt;&gt;&gt;dictable[3 x 4]
+&gt;&gt;&gt;name   <a href="#id277"><span class="problematic" id="id278">|</span></a>surname <a href="#id279"><span class="problematic" id="id280">|</span></a>age|initials
+&gt;&gt;&gt;alan   <a href="#id281"><span class="problematic" id="id282">|</span></a>abramson|1  <a href="#id283"><span class="problematic" id="id284">|</span></a>aa
+&gt;&gt;&gt;barbara|brown   <a href="#id285"><span class="problematic" id="id286">|</span></a>2  <a href="#id287"><span class="problematic" id="id288">|</span></a>bb
+&gt;&gt;&gt;chris  <a href="#id289"><span class="problematic" id="id290">|</span></a>cohen   <a href="#id291"><span class="problematic" id="id292">|</span></a>3  <a href="#id293"><span class="problematic" id="id294">|</span></a>cc</p>
+<p>Given d is a dict, a more traditional way of setting a new key is by simple assignment:</p>
+<p>&gt;&gt;&gt;d[‘initials’] = d[lambda name, surname: name[0] + surname[0]]; d</p>
+<p>&gt;&gt;&gt;dictable[3 x 4]
+&gt;&gt;&gt;name   <a href="#id295"><span class="problematic" id="id296">|</span></a>surname <a href="#id297"><span class="problematic" id="id298">|</span></a>age|initials
+&gt;&gt;&gt;alan   <a href="#id299"><span class="problematic" id="id300">|</span></a>abramson|1  <a href="#id301"><span class="problematic" id="id302">|</span></a>aa
+&gt;&gt;&gt;barbara|brown   <a href="#id303"><span class="problematic" id="id304">|</span></a>2  <a href="#id305"><span class="problematic" id="id306">|</span></a>bb
+&gt;&gt;&gt;chris  <a href="#id307"><span class="problematic" id="id308">|</span></a>cohen   <a href="#id309"><span class="problematic" id="id310">|</span></a>3  <a href="#id311"><span class="problematic" id="id312">|</span></a>cc</p>
+<p>Or you can use the dict.update method:</p>
+<p>&gt;&gt;&gt;d.update(dict(gender = [‘m’, ‘f’, ‘m’])); d</p>
+<p>&gt;&gt;&gt;dictable[3 x 5]
+&gt;&gt;&gt;name   <a href="#id313"><span class="problematic" id="id314">|</span></a>surname <a href="#id315"><span class="problematic" id="id316">|</span></a>age|initials|gender
+&gt;&gt;&gt;alan   <a href="#id317"><span class="problematic" id="id318">|</span></a>abramson|1  <a href="#id319"><span class="problematic" id="id320">|</span></a>aa      <a href="#id321"><span class="problematic" id="id322">|</span></a>m
+&gt;&gt;&gt;barbara|brown   <a href="#id323"><span class="problematic" id="id324">|</span></a>2  <a href="#id325"><span class="problematic" id="id326">|</span></a>bb      <a href="#id327"><span class="problematic" id="id328">|</span></a>f
+&gt;&gt;&gt;chris  <a href="#id329"><span class="problematic" id="id330">|</span></a>cohen   <a href="#id331"><span class="problematic" id="id332">|</span></a>3  <a href="#id333"><span class="problematic" id="id334">|</span></a>cc      <a href="#id335"><span class="problematic" id="id336">|</span></a>m</p>
+</div>
+<div class="section" id="do">
+<h2>do<a class="headerlink" href="#do" title="Permalink to this headline">¶</a></h2>
+<p>Sometime we want to apply the same function(s) to a collection of columns. For this, ‘do’ will do nicely:</p>
+<p>&gt;&gt;&gt;d = d.do(upper, ‘initials’, ‘gender’).do(proper, ‘name’, ‘surname’); d</p>
+<p>&gt;&gt;&gt;dictable[3 x 5]
+&gt;&gt;&gt;name   <a href="#id337"><span class="problematic" id="id338">|</span></a>surname <a href="#id339"><span class="problematic" id="id340">|</span></a>age|initials|gender
+&gt;&gt;&gt;Alan   <a href="#id341"><span class="problematic" id="id342">|</span></a>Abramson|1  <a href="#id343"><span class="problematic" id="id344">|</span></a>AA      <a href="#id345"><span class="problematic" id="id346">|</span></a>M
+&gt;&gt;&gt;Barbara|Brown   <a href="#id347"><span class="problematic" id="id348">|</span></a>2  <a href="#id349"><span class="problematic" id="id350">|</span></a>BB      <a href="#id351"><span class="problematic" id="id352">|</span></a>F
+&gt;&gt;&gt;Chris  <a href="#id353"><span class="problematic" id="id354">|</span></a>Cohen   <a href="#id355"><span class="problematic" id="id356">|</span></a>3  <a href="#id357"><span class="problematic" id="id358">|</span></a>CC      <a href="#id359"><span class="problematic" id="id360">|</span></a>M</p>
+</div>
+<div class="section" id="removing-columns">
+<h2>removing columns<a class="headerlink" href="#removing-columns" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;d = d - ‘initials’; d</p>
+<p>&gt;&gt;&gt;dictable[3 x 4]
+&gt;&gt;&gt;name   <a href="#id361"><span class="problematic" id="id362">|</span></a>surname <a href="#id363"><span class="problematic" id="id364">|</span></a>age|gender
+&gt;&gt;&gt;Alan   <a href="#id365"><span class="problematic" id="id366">|</span></a>Abramson|1  <a href="#id367"><span class="problematic" id="id368">|</span></a>M
+&gt;&gt;&gt;Barbara|Brown   <a href="#id369"><span class="problematic" id="id370">|</span></a>2  <a href="#id371"><span class="problematic" id="id372">|</span></a>F
+&gt;&gt;&gt;Chris  <a href="#id373"><span class="problematic" id="id374">|</span></a>Cohen   <a href="#id375"><span class="problematic" id="id376">|</span></a>3  <a href="#id377"><span class="problematic" id="id378">|</span></a>M</p>
+</div>
+<div class="section" id="removing-rows">
+<h2>removing rows<a class="headerlink" href="#removing-rows" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;d.exc(name = ‘Alan’)</p>
+<p>&gt;&gt;&gt;dictable[2 x 4]
+&gt;&gt;&gt;age|gender|name   <a href="#id379"><span class="problematic" id="id380">|</span></a>surname
+&gt;&gt;&gt;2  <a href="#id381"><span class="problematic" id="id382">|</span></a>F     <a href="#id383"><span class="problematic" id="id384">|</span></a>Barbara|Brown
+&gt;&gt;&gt;3  <a href="#id385"><span class="problematic" id="id386">|</span></a>M     <a href="#id387"><span class="problematic" id="id388">|</span></a>Chris  <a href="#id389"><span class="problematic" id="id390">|</span></a>Cohen</p>
+<p>&gt;&gt;&gt;d.inc(name = [‘Alan’, ‘Chris’])</p>
+<p>&gt;&gt;&gt;dictable[2 x 4]
+&gt;&gt;&gt;age|gender|name <a href="#id391"><span class="problematic" id="id392">|</span></a>surname
+&gt;&gt;&gt;1  <a href="#id393"><span class="problematic" id="id394">|</span></a>M     <a href="#id395"><span class="problematic" id="id396">|</span></a>Alan <a href="#id397"><span class="problematic" id="id398">|</span></a>Abramson
+&gt;&gt;&gt;3  <a href="#id399"><span class="problematic" id="id400">|</span></a>M     <a href="#id401"><span class="problematic" id="id402">|</span></a>Chris|Cohen</p>
+<p>&gt;&gt;&gt;d.inc(lambda age: age&gt;1)</p>
+<p>&gt;&gt;&gt;dictable[2 x 4]
+&gt;&gt;&gt;age|gender|name   <a href="#id403"><span class="problematic" id="id404">|</span></a>surname
+&gt;&gt;&gt;2  <a href="#id405"><span class="problematic" id="id406">|</span></a>F     <a href="#id407"><span class="problematic" id="id408">|</span></a>Barbara|Brown
+&gt;&gt;&gt;3  <a href="#id409"><span class="problematic" id="id410">|</span></a>M     <a href="#id411"><span class="problematic" id="id412">|</span></a>Chris  <a href="#id413"><span class="problematic" id="id414">|</span></a>Cohen</p>
+<p>&gt;&gt;&gt;d.exc(lambda gender: gender == ‘M’)</p>
+<p>&gt;&gt;&gt;dictable[1 x 4]
+&gt;&gt;&gt;name   <a href="#id415"><span class="problematic" id="id416">|</span></a>surname|age|gender
+&gt;&gt;&gt;Barbara|Brown  <a href="#id417"><span class="problematic" id="id418">|</span></a>2  <a href="#id419"><span class="problematic" id="id420">|</span></a>F</p>
+<p>&gt;&gt;&gt;d.exc(lambda name, surname: len(name)&gt;len(surname))</p>
+<p>&gt;&gt;&gt;dictable[2 x 4]
+&gt;&gt;&gt;age|gender|name <a href="#id421"><span class="problematic" id="id422">|</span></a>surname
+&gt;&gt;&gt;1  <a href="#id423"><span class="problematic" id="id424">|</span></a>M     <a href="#id425"><span class="problematic" id="id426">|</span></a>Alan <a href="#id427"><span class="problematic" id="id428">|</span></a>Abramson
+&gt;&gt;&gt;3  <a href="#id429"><span class="problematic" id="id430">|</span></a>M     <a href="#id431"><span class="problematic" id="id432">|</span></a>Chris|Cohen</p>
+<div class="section" id="removal-via-quotient-or-inner-join">
+<h3>removal via ‘quotient’ or inner-join<a class="headerlink" href="#removal-via-quotient-or-inner-join" title="Permalink to this headline">¶</a></h3>
+<p>&gt;&gt;&gt;d / dict(name = ‘Alan’)</p>
+<p>&gt;&gt;&gt;dictable[2 x 4]
+&gt;&gt;&gt;name   <a href="#id433"><span class="problematic" id="id434">|</span></a>surname|age|gender
+&gt;&gt;&gt;Barbara|Brown  <a href="#id435"><span class="problematic" id="id436">|</span></a>2  <a href="#id437"><span class="problematic" id="id438">|</span></a>F
+&gt;&gt;&gt;Chris  <a href="#id439"><span class="problematic" id="id440">|</span></a>Cohen  <a href="#id441"><span class="problematic" id="id442">|</span></a>3  <a href="#id443"><span class="problematic" id="id444">|</span></a>M</p>
+<p>&gt;&gt;&gt;d * dict(age = 2)</p>
+<p>&gt;&gt;&gt;dictable[1 x 4]
+&gt;&gt;&gt;age|name   <a href="#id445"><span class="problematic" id="id446">|</span></a>surname|gender
+&gt;&gt;&gt;2  <a href="#id447"><span class="problematic" id="id448">|</span></a>Barbara|Brown  <a href="#id449"><span class="problematic" id="id450">|</span></a>F</p>
+</div>
+</div>
+<div class="section" id="sort">
+<h2>sort<a class="headerlink" href="#sort" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;d.sort(‘name’, ‘surname’)</p>
+<p>&gt;&gt;&gt;dictable[3 x 4]
+&gt;&gt;&gt;name   <a href="#id451"><span class="problematic" id="id452">|</span></a>surname <a href="#id453"><span class="problematic" id="id454">|</span></a>age|gender
+&gt;&gt;&gt;Alan   <a href="#id455"><span class="problematic" id="id456">|</span></a>Abramson|1  <a href="#id457"><span class="problematic" id="id458">|</span></a>M
+&gt;&gt;&gt;Barbara|Brown   <a href="#id459"><span class="problematic" id="id460">|</span></a>2  <a href="#id461"><span class="problematic" id="id462">|</span></a>F
+&gt;&gt;&gt;Chris  <a href="#id463"><span class="problematic" id="id464">|</span></a>Cohen   <a href="#id465"><span class="problematic" id="id466">|</span></a>3  <a href="#id467"><span class="problematic" id="id468">|</span></a>M</p>
+<p>&gt;&gt;&gt;d.sort(lambda name: name[::-1]) # can sort on functions of variables too</p>
+<p>&gt;&gt;&gt;dictable[3 x 4]
+&gt;&gt;&gt;name   <a href="#id469"><span class="problematic" id="id470">|</span></a>surname <a href="#id471"><span class="problematic" id="id472">|</span></a>age|gender
+&gt;&gt;&gt;Barbara|Brown   <a href="#id473"><span class="problematic" id="id474">|</span></a>2  <a href="#id475"><span class="problematic" id="id476">|</span></a>F
+&gt;&gt;&gt;Alan   <a href="#id477"><span class="problematic" id="id478">|</span></a>Abramson|1  <a href="#id479"><span class="problematic" id="id480">|</span></a>M
+&gt;&gt;&gt;Chris  <a href="#id481"><span class="problematic" id="id482">|</span></a>Cohen   <a href="#id483"><span class="problematic" id="id484">|</span></a>3  <a href="#id485"><span class="problematic" id="id486">|</span></a>M</p>
+</div>
+<div class="section" id="listby-keys">
+<h2>listby(keys)<a class="headerlink" href="#listby-keys" title="Permalink to this headline">¶</a></h2>
+<p>listby is like groupby except it returns a dictable with unique keys and the other columns are returned as a list. We find that MUCH more useful usually than groupby</p>
+<p>&gt;&gt;&gt;grades = dictable(name = [‘alan’, ‘barbara’, ‘chris’], grades = [30,90,80], subject = ‘english’, teacher = ‘mr bennet’) &gt;&gt;&gt;       + dictable(name = [‘alan’, ‘david’, ‘esther’], grades = [40,50,70], subject = ‘math’, teacher = ‘mrs ruler’) &gt;&gt;&gt;       + dictable(name = [‘barbara’, ‘chris’, ‘esther’], grades = [90,60,80], subject = ‘french’, teacher = ‘dr francois’)</p>
+<p>&gt;&gt;&gt;grades.listby(‘teacher’)</p>
+<p>&gt;&gt;&gt;dictable[3 x 4]
+&gt;&gt;&gt;teacher    <a href="#id487"><span class="problematic" id="id488">|</span></a>grades      <a href="#id489"><span class="problematic" id="id490">|</span></a>name                          <a href="#id491"><span class="problematic" id="id492">|</span></a>subject
+&gt;&gt;&gt;dr francois|[90, 60, 80]|[‘barbara’, ‘chris’, ‘esther’]|[‘french’, ‘french’, ‘french’]
+&gt;&gt;&gt;mr bennet  <a href="#id493"><span class="problematic" id="id494">|</span></a>[30, 90, 80]|[‘alan’, ‘barbara’, ‘chris’]  <a href="#id495"><span class="problematic" id="id496">|</span></a>[‘english’, ‘english’, ‘english’]
+&gt;&gt;&gt;mrs ruler  <a href="#id497"><span class="problematic" id="id498">|</span></a>[40, 50, 70]|[‘alan’, ‘david’, ‘esther’]   <a href="#id499"><span class="problematic" id="id500">|</span></a>[‘math’, ‘math’, ‘math’]</p>
+<p>&gt;&gt;&gt;grades.listby(‘teacher’)(avg_grade = lambda grades: np.mean(grades))</p>
+<p>&gt;&gt;&gt;dictable[3 x 5]
+&gt;&gt;&gt;teacher    <a href="#id501"><span class="problematic" id="id502">|</span></a>grades      <a href="#id503"><span class="problematic" id="id504">|</span></a>name                          <a href="#id505"><span class="problematic" id="id506">|</span></a>subject                          <a href="#id507"><span class="problematic" id="id508">|</span></a>avg_grade
+&gt;&gt;&gt;dr francois|[90, 60, 80]|[‘barbara’, ‘chris’, ‘esther’]|[‘french’, ‘french’, ‘french’]   <a href="#id509"><span class="problematic" id="id510">|</span></a>76.66666666666667
+&gt;&gt;&gt;mr bennet  <a href="#id511"><span class="problematic" id="id512">|</span></a>[30, 90, 80]|[‘alan’, ‘barbara’, ‘chris’]  <a href="#id513"><span class="problematic" id="id514">|</span></a>[‘english’, ‘english’, ‘english’]|66.66666666666667
+&gt;&gt;&gt;mrs ruler  <a href="#id515"><span class="problematic" id="id516">|</span></a>[40, 50, 70]|[‘alan’, ‘david’, ‘esther’]   <a href="#id517"><span class="problematic" id="id518">|</span></a>[‘math’, ‘math’, ‘math’]         <a href="#id519"><span class="problematic" id="id520">|</span></a>53.333333333333336</p>
+</div>
+<div class="section" id="unlist">
+<h2>unlist<a class="headerlink" href="#unlist" title="Permalink to this headline">¶</a></h2>
+<p>unlist undoes listby() assuming it is possible…</p>
+<p>&gt;&gt;&gt;grades.listby(‘teacher’).unlist()</p>
+<p>&gt;&gt;&gt;dictable[9 x 4]
+&gt;&gt;&gt;grades|name   <a href="#id521"><span class="problematic" id="id522">|</span></a>subject|teacher
+&gt;&gt;&gt;90    <a href="#id523"><span class="problematic" id="id524">|</span></a>barbara|french <a href="#id525"><span class="problematic" id="id526">|</span></a>dr francois
+&gt;&gt;&gt;60    <a href="#id527"><span class="problematic" id="id528">|</span></a>chris  <a href="#id529"><span class="problematic" id="id530">|</span></a>french <a href="#id531"><span class="problematic" id="id532">|</span></a>dr francois
+&gt;&gt;&gt;80    <a href="#id533"><span class="problematic" id="id534">|</span></a>esther <a href="#id535"><span class="problematic" id="id536">|</span></a>french <a href="#id537"><span class="problematic" id="id538">|</span></a>dr francois
+&gt;&gt;&gt;…9 rows…
+&gt;&gt;&gt;40    <a href="#id539"><span class="problematic" id="id540">|</span></a>alan   <a href="#id541"><span class="problematic" id="id542">|</span></a>math   <a href="#id543"><span class="problematic" id="id544">|</span></a>mrs ruler
+&gt;&gt;&gt;50    <a href="#id545"><span class="problematic" id="id546">|</span></a>david  <a href="#id547"><span class="problematic" id="id548">|</span></a>math   <a href="#id549"><span class="problematic" id="id550">|</span></a>mrs ruler
+&gt;&gt;&gt;70    <a href="#id551"><span class="problematic" id="id552">|</span></a>esther <a href="#id553"><span class="problematic" id="id554">|</span></a>math   <a href="#id555"><span class="problematic" id="id556">|</span></a>mrs ruler</p>
+</div>
+<div class="section" id="groupby-keys-and-ungroup">
+<h2>groupby(keys) and ungroup<a class="headerlink" href="#groupby-keys-and-ungroup" title="Permalink to this headline">¶</a></h2>
+<p>This is similar to DatFrame groupby except that instead of a new object, a dictable is returned: The name of the grouped column is given by ‘grp’. ungroup allows us to get back to original.</p>
+<p>&gt;&gt;&gt;classes = grades.groupby([‘teacher’, ‘subject’], grp = ‘class’)</p>
+<p>&gt;&gt;&gt;classes[0]</p>
+<p>&gt;&gt;&gt;{‘teacher’: ‘dr francois’,
+&gt;&gt;&gt; ‘subject’: ‘french’,
+&gt;&gt;&gt; ‘class’: dictable[3 x 2]
+&gt;&gt;&gt; grades|name
+&gt;&gt;&gt; 90    <a href="#id557"><span class="problematic" id="id558">|</span></a>barbara
+&gt;&gt;&gt; 60    <a href="#id559"><span class="problematic" id="id560">|</span></a>chris
+&gt;&gt;&gt; 80    <a href="#id561"><span class="problematic" id="id562">|</span></a>esther }</p>
+<p>&gt;&gt;&gt;classes.ungroup(‘class’)</p>
+<p>&gt;&gt;&gt;dictable[9 x 4]
+&gt;&gt;&gt;grades|name   <a href="#id563"><span class="problematic" id="id564">|</span></a>subject|teacher
+&gt;&gt;&gt;90    <a href="#id565"><span class="problematic" id="id566">|</span></a>barbara|french <a href="#id567"><span class="problematic" id="id568">|</span></a>dr francois
+&gt;&gt;&gt;60    <a href="#id569"><span class="problematic" id="id570">|</span></a>chris  <a href="#id571"><span class="problematic" id="id572">|</span></a>french <a href="#id573"><span class="problematic" id="id574">|</span></a>dr francois
+&gt;&gt;&gt;80    <a href="#id575"><span class="problematic" id="id576">|</span></a>esther <a href="#id577"><span class="problematic" id="id578">|</span></a>french <a href="#id579"><span class="problematic" id="id580">|</span></a>dr francois
+&gt;&gt;&gt;…9 rows…
+&gt;&gt;&gt;40    <a href="#id581"><span class="problematic" id="id582">|</span></a>alan   <a href="#id583"><span class="problematic" id="id584">|</span></a>math   <a href="#id585"><span class="problematic" id="id586">|</span></a>mrs ruler
+&gt;&gt;&gt;50    <a href="#id587"><span class="problematic" id="id588">|</span></a>david  <a href="#id589"><span class="problematic" id="id590">|</span></a>math   <a href="#id591"><span class="problematic" id="id592">|</span></a>mrs ruler
+&gt;&gt;&gt;70    <a href="#id593"><span class="problematic" id="id594">|</span></a>esther <a href="#id595"><span class="problematic" id="id596">|</span></a>math   <a href="#id597"><span class="problematic" id="id598">|</span></a>mrs ruler</p>
+</div>
+<div class="section" id="joins">
+<h2>joins<a class="headerlink" href="#joins" title="Permalink to this headline">¶</a></h2>
+<p>We start with inner joins. By default, if two dictables share keys, the join is an inner join on the keys</p>
+<p>&gt;&gt;&gt;students = dictable(name = [‘alan’, ‘barbara’, ‘chris’, ‘david’, ‘esthar’, ‘fabian’], surname = [‘abramsom’, ‘brown’, ‘cohen’, ‘drummond’, ‘ecklestone’, ‘fox’])</p>
+<p>&gt;&gt;&gt;print(‘shared keys:’, grades.keys() &amp; students.keys())
+&gt;&gt;&gt;grades * students</p>
+<p>&gt;&gt;&gt;shared keys: [‘name’]
+&gt;&gt;&gt;dictable[7 x 5]
+&gt;&gt;&gt;name   <a href="#id599"><span class="problematic" id="id600">|</span></a>grades|subject|teacher    <a href="#id601"><span class="problematic" id="id602">|</span></a>surname
+&gt;&gt;&gt;alan   <a href="#id603"><span class="problematic" id="id604">|</span></a>30    <a href="#id605"><span class="problematic" id="id606">|</span></a>english|mr bennet  <a href="#id607"><span class="problematic" id="id608">|</span></a>abramsom
+&gt;&gt;&gt;alan   <a href="#id609"><span class="problematic" id="id610">|</span></a>40    <a href="#id611"><span class="problematic" id="id612">|</span></a>math   <a href="#id613"><span class="problematic" id="id614">|</span></a>mrs ruler  <a href="#id615"><span class="problematic" id="id616">|</span></a>abramsom
+&gt;&gt;&gt;barbara|90    <a href="#id617"><span class="problematic" id="id618">|</span></a>english|mr bennet  <a href="#id619"><span class="problematic" id="id620">|</span></a>brown
+&gt;&gt;&gt;…7 rows…
+&gt;&gt;&gt;chris  <a href="#id621"><span class="problematic" id="id622">|</span></a>80    <a href="#id623"><span class="problematic" id="id624">|</span></a>english|mr bennet  <a href="#id625"><span class="problematic" id="id626">|</span></a>cohen
+&gt;&gt;&gt;chris  <a href="#id627"><span class="problematic" id="id628">|</span></a>60    <a href="#id629"><span class="problematic" id="id630">|</span></a>french <a href="#id631"><span class="problematic" id="id632">|</span></a>dr francois|cohen
+&gt;&gt;&gt;david  <a href="#id633"><span class="problematic" id="id634">|</span></a>50    <a href="#id635"><span class="problematic" id="id636">|</span></a>math   <a href="#id637"><span class="problematic" id="id638">|</span></a>mrs ruler  <a href="#id639"><span class="problematic" id="id640">|</span></a>drummond</p>
+<p>Are there students with no surname?</p>
+<p>&gt;&gt;&gt;grades / students</p>
+<p>&gt;&gt;&gt;dictable[2 x 4]
+&gt;&gt;&gt;grades|name  <a href="#id641"><span class="problematic" id="id642">|</span></a>subject|teacher
+&gt;&gt;&gt;70    <a href="#id643"><span class="problematic" id="id644">|</span></a>esther|math   <a href="#id645"><span class="problematic" id="id646">|</span></a>mrs ruler
+&gt;&gt;&gt;80    <a href="#id647"><span class="problematic" id="id648">|</span></a>esther|french <a href="#id649"><span class="problematic" id="id650">|</span></a>dr francois</p>
+<p>Are there students with no grades?</p>
+<p>&gt;&gt;&gt;students / grades</p>
+<p>&gt;&gt;&gt;dictable[2 x 2]
+&gt;&gt;&gt;name  <a href="#id651"><span class="problematic" id="id652">|</span></a>surname
+&gt;&gt;&gt;esthar|ecklestone
+&gt;&gt;&gt;fabian|fox</p>
+<p>&gt;&gt;&gt;students = dictable(name = [‘Alan’, ‘Barbara’, ‘Chris’, ‘David’, ‘Esther’, ‘Fabian’], surname = [‘abramsom’, ‘brown’, ‘cohen’, ‘drummond’, ‘ecklestone’, ‘fox’])</p>
+<p>We fixed Esther’s spelling but introduced capitalization, that is OK, we are allowed to inner join on functions of keys too.</p>
+<p>&gt;&gt;&gt;grades.join(students, ‘name’, lambda name: name.lower())</p>
+<p>&gt;&gt;&gt;dictable[9 x 5]
+&gt;&gt;&gt;name   <a href="#id653"><span class="problematic" id="id654">|</span></a>grades|subject|teacher    <a href="#id655"><span class="problematic" id="id656">|</span></a>surname
+&gt;&gt;&gt;alan   <a href="#id657"><span class="problematic" id="id658">|</span></a>30    <a href="#id659"><span class="problematic" id="id660">|</span></a>english|mr bennet  <a href="#id661"><span class="problematic" id="id662">|</span></a>abramsom
+&gt;&gt;&gt;alan   <a href="#id663"><span class="problematic" id="id664">|</span></a>40    <a href="#id665"><span class="problematic" id="id666">|</span></a>math   <a href="#id667"><span class="problematic" id="id668">|</span></a>mrs ruler  <a href="#id669"><span class="problematic" id="id670">|</span></a>abramsom
+&gt;&gt;&gt;barbara|90    <a href="#id671"><span class="problematic" id="id672">|</span></a>english|mr bennet  <a href="#id673"><span class="problematic" id="id674">|</span></a>brown
+&gt;&gt;&gt;…9 rows…
+&gt;&gt;&gt;david  <a href="#id675"><span class="problematic" id="id676">|</span></a>50    <a href="#id677"><span class="problematic" id="id678">|</span></a>math   <a href="#id679"><span class="problematic" id="id680">|</span></a>mrs ruler  <a href="#id681"><span class="problematic" id="id682">|</span></a>drummond
+&gt;&gt;&gt;esther <a href="#id683"><span class="problematic" id="id684">|</span></a>70    <a href="#id685"><span class="problematic" id="id686">|</span></a>math   <a href="#id687"><span class="problematic" id="id688">|</span></a>mrs ruler  <a href="#id689"><span class="problematic" id="id690">|</span></a>ecklestone
+&gt;&gt;&gt;esther <a href="#id691"><span class="problematic" id="id692">|</span></a>80    <a href="#id693"><span class="problematic" id="id694">|</span></a>french <a href="#id695"><span class="problematic" id="id696">|</span></a>dr francois|ecklestone</p>
+<p>&gt;&gt;&gt;students = dictable(first_name = [‘alan’, ‘barbara’, ‘chris’, ‘david’, ‘esther’, ‘fabian’], surname = [‘abramsom’, ‘brown’, ‘cohen’, ‘drummond’, ‘ecklestone’, ‘fox’])</p>
+<p>You can inner join on different column names and both columns will be populated:</p>
+<p>&gt;&gt;&gt;grades.join(pd.DataFrame(students), ‘name’, ‘first_name’)</p>
+<p>&gt;&gt;&gt;dictable[9 x 6]
+&gt;&gt;&gt;name   <a href="#id697"><span class="problematic" id="id698">|</span></a>grades|subject|teacher    <a href="#id699"><span class="problematic" id="id700">|</span></a>first_name|surname
+&gt;&gt;&gt;alan   <a href="#id701"><span class="problematic" id="id702">|</span></a>30    <a href="#id703"><span class="problematic" id="id704">|</span></a>english|mr bennet  <a href="#id705"><span class="problematic" id="id706">|</span></a>alan      <a href="#id707"><span class="problematic" id="id708">|</span></a>abramsom
+&gt;&gt;&gt;alan   <a href="#id709"><span class="problematic" id="id710">|</span></a>40    <a href="#id711"><span class="problematic" id="id712">|</span></a>math   <a href="#id713"><span class="problematic" id="id714">|</span></a>mrs ruler  <a href="#id715"><span class="problematic" id="id716">|</span></a>alan      <a href="#id717"><span class="problematic" id="id718">|</span></a>abramsom
+&gt;&gt;&gt;barbara|90    <a href="#id719"><span class="problematic" id="id720">|</span></a>english|mr bennet  <a href="#id721"><span class="problematic" id="id722">|</span></a>barbara   <a href="#id723"><span class="problematic" id="id724">|</span></a>brown
+&gt;&gt;&gt;…9 rows…
+&gt;&gt;&gt;david  <a href="#id725"><span class="problematic" id="id726">|</span></a>50    <a href="#id727"><span class="problematic" id="id728">|</span></a>math   <a href="#id729"><span class="problematic" id="id730">|</span></a>mrs ruler  <a href="#id731"><span class="problematic" id="id732">|</span></a>david     <a href="#id733"><span class="problematic" id="id734">|</span></a>drummond
+&gt;&gt;&gt;esther <a href="#id735"><span class="problematic" id="id736">|</span></a>70    <a href="#id737"><span class="problematic" id="id738">|</span></a>math   <a href="#id739"><span class="problematic" id="id740">|</span></a>mrs ruler  <a href="#id741"><span class="problematic" id="id742">|</span></a>esther    <a href="#id743"><span class="problematic" id="id744">|</span></a>ecklestone
+&gt;&gt;&gt;esther <a href="#id745"><span class="problematic" id="id746">|</span></a>80    <a href="#id747"><span class="problematic" id="id748">|</span></a>french <a href="#id749"><span class="problematic" id="id750">|</span></a>dr francois|esther    <a href="#id751"><span class="problematic" id="id752">|</span></a>ecklestone</p>
+</div>
+<div class="section" id="inner-join-with-other-columns-that-match-names">
+<h2>inner join with other columns that match names…<a class="headerlink" href="#inner-join-with-other-columns-that-match-names" title="Permalink to this headline">¶</a></h2>
+<p>By default, if columns are shared but are not in the join, they will be returned with a tuple containing both values</p>
+<p>&gt;&gt;&gt;x = dictable(key = [‘a’, ‘b’, ‘c’, ‘c’], x = [1,2,3,4], y = [4,5,6,7])
+&gt;&gt;&gt;y = dictable(key = [‘b’, ‘b’, ‘c’, ‘a’], x = [1,2,3,4], z = [8,9,1,2])
+&gt;&gt;&gt;x.join(y, ‘key’, ‘key’) ## ignore x column for joining</p>
+<p>&gt;&gt;&gt;dictable[5 x 4]
+&gt;&gt;&gt;key|y|z|x
+&gt;&gt;&gt;a  <a href="#id753"><span class="problematic" id="id754">|</span></a>4|2|(1, 4)
+&gt;&gt;&gt;b  <a href="#id755"><span class="problematic" id="id756">|</span></a>5|8|(2, 1)
+&gt;&gt;&gt;b  <a href="#id757"><span class="problematic" id="id758">|</span></a>5|9|(2, 2)
+&gt;&gt;&gt;c  <a href="#id759"><span class="problematic" id="id760">|</span></a>6|1|(3, 3)
+&gt;&gt;&gt;c  <a href="#id761"><span class="problematic" id="id762">|</span></a>7|1|(4, 3)</p>
+<p>&gt;&gt;&gt;x.join(y, ‘key’, ‘key’, mode = ‘left’) ## grab left value</p>
+<p>&gt;&gt;&gt;dictable[5 x 4]
+&gt;&gt;&gt;key|y|z|x
+&gt;&gt;&gt;a  <a href="#id763"><span class="problematic" id="id764">|</span></a>4|2|1
+&gt;&gt;&gt;b  <a href="#id765"><span class="problematic" id="id766">|</span></a>5|8|2
+&gt;&gt;&gt;b  <a href="#id767"><span class="problematic" id="id768">|</span></a>5|9|2
+&gt;&gt;&gt;c  <a href="#id769"><span class="problematic" id="id770">|</span></a>6|1|3
+&gt;&gt;&gt;c  <a href="#id771"><span class="problematic" id="id772">|</span></a>7|1|4</p>
+</div>
+<div class="section" id="cross-join">
+<h2>cross join<a class="headerlink" href="#cross-join" title="Permalink to this headline">¶</a></h2>
+<p>If no columns are shared, then a cross join is returned.</p>
+<p>&gt;&gt;&gt;x = dictable(x = [1,2,3,4])
+&gt;&gt;&gt;y = dict(y = [1,2,3])
+&gt;&gt;&gt;x * y</p>
+<p>&gt;&gt;&gt;dictable[12 x 2]
+&gt;&gt;&gt;x|y
+&gt;&gt;&gt;1|1
+&gt;&gt;&gt;1|2
+&gt;&gt;&gt;1|3
+&gt;&gt;&gt;…12 rows…
+&gt;&gt;&gt;4|1
+&gt;&gt;&gt;4|2
+&gt;&gt;&gt;4|3</p>
+<p>&gt;&gt;&gt;x.join(y, [], []) ## you can force a full outer join</p>
+<p>&gt;&gt;&gt;dictable[12 x 2]
+&gt;&gt;&gt;x|y
+&gt;&gt;&gt;1|1
+&gt;&gt;&gt;1|2
+&gt;&gt;&gt;1|3
+&gt;&gt;&gt;…12 rows…
+&gt;&gt;&gt;4|1
+&gt;&gt;&gt;4|2
+&gt;&gt;&gt;4|3</p>
+<p>&gt;&gt;&gt;x / y == x</p>
+<p>&gt;&gt;&gt;True</p>
+</div>
+<div class="section" id="left-join-and-right-join">
+<h2>left join and right join??<a class="headerlink" href="#left-join-and-right-join" title="Permalink to this headline">¶</a></h2>
+<p>We find them actually not very useful. The xor operator is much more useful and you can use it to rereate left/right join</p>
+<p>If a key is not matched from the table we join to, we need to know about it and treat them separately</p>
+<p>&gt;&gt;&gt;students = dictable(name = [‘alan’, ‘barbara’, ‘chris’], surname = [‘abramsom’, ‘brown’, ‘cohen’,])
+&gt;&gt;&gt;new_students = dictable(name = [‘david’, ‘esther’, ‘fabian’], surname = [‘drummond’, ‘ecklestone’, ‘fox’])
+&gt;&gt;&gt;
+&gt;&gt;&gt;inner_join = grades * students ## grades with students
+&gt;&gt;&gt;left_xor = grades / students  ## grades without sudents
+&gt;&gt;&gt;
+&gt;&gt;&gt;# you can…
+&gt;&gt;&gt;left_join = grades * students + grades / students ## grades for which no surname is available
+&gt;&gt;&gt;left_join</p>
+<p>&gt;&gt;&gt;dictable[9 x 5]
+&gt;&gt;&gt;grades|name   <a href="#id773"><span class="problematic" id="id774">|</span></a>teacher    <a href="#id775"><span class="problematic" id="id776">|</span></a>surname <a href="#id777"><span class="problematic" id="id778">|</span></a>subject
+&gt;&gt;&gt;30    <a href="#id779"><span class="problematic" id="id780">|</span></a>alan   <a href="#id781"><span class="problematic" id="id782">|</span></a>mr bennet  <a href="#id783"><span class="problematic" id="id784">|</span></a>abramsom|english
+&gt;&gt;&gt;40    <a href="#id785"><span class="problematic" id="id786">|</span></a>alan   <a href="#id787"><span class="problematic" id="id788">|</span></a>mrs ruler  <a href="#id789"><span class="problematic" id="id790">|</span></a>abramsom|math
+&gt;&gt;&gt;90    <a href="#id791"><span class="problematic" id="id792">|</span></a>barbara|mr bennet  <a href="#id793"><span class="problematic" id="id794">|</span></a>brown   <a href="#id795"><span class="problematic" id="id796">|</span></a>english
+&gt;&gt;&gt;…9 rows…
+&gt;&gt;&gt;50    <a href="#id797"><span class="problematic" id="id798">|</span></a>david  <a href="#id799"><span class="problematic" id="id800">|</span></a>mrs ruler  <a href="#id801"><span class="problematic" id="id802">|</span></a>None    <a href="#id803"><span class="problematic" id="id804">|</span></a>math
+&gt;&gt;&gt;70    <a href="#id805"><span class="problematic" id="id806">|</span></a>esther <a href="#id807"><span class="problematic" id="id808">|</span></a>mrs ruler  <a href="#id809"><span class="problematic" id="id810">|</span></a>None    <a href="#id811"><span class="problematic" id="id812">|</span></a>math
+&gt;&gt;&gt;80    <a href="#id813"><span class="problematic" id="id814">|</span></a>esther <a href="#id815"><span class="problematic" id="id816">|</span></a>dr francois|None    <a href="#id817"><span class="problematic" id="id818">|</span></a>french</p>
+<p>&gt;&gt;&gt;# but really you want to do:
+&gt;&gt;&gt;student_grades = grades * students
+&gt;&gt;&gt;unmapped_grades = grades / students ## we treat this one separately…
+&gt;&gt;&gt;new_student_grades =  unmapped_grades * new_students ## and grab surnames from the new students table…</p>
+<p>&gt;&gt;&gt;assert len(unmapped_grades / new_student_grades) == 0, ‘students must exist either in the students table or in the new students table’</p>
+<p>&gt;&gt;&gt;all_grades = student_grades + new_student_grades; all_grades</p>
+<p>&gt;&gt;&gt;dictable[9 x 5]
+&gt;&gt;&gt;grades|name   <a href="#id819"><span class="problematic" id="id820">|</span></a>subject|surname   <a href="#id821"><span class="problematic" id="id822">|</span></a>teacher
+&gt;&gt;&gt;30    <a href="#id823"><span class="problematic" id="id824">|</span></a>alan   <a href="#id825"><span class="problematic" id="id826">|</span></a>english|abramsom  <a href="#id827"><span class="problematic" id="id828">|</span></a>mr bennet
+&gt;&gt;&gt;40    <a href="#id829"><span class="problematic" id="id830">|</span></a>alan   <a href="#id831"><span class="problematic" id="id832">|</span></a>math   <a href="#id833"><span class="problematic" id="id834">|</span></a>abramsom  <a href="#id835"><span class="problematic" id="id836">|</span></a>mrs ruler
+&gt;&gt;&gt;90    <a href="#id837"><span class="problematic" id="id838">|</span></a>barbara|english|brown     <a href="#id839"><span class="problematic" id="id840">|</span></a>mr bennet
+&gt;&gt;&gt;…9 rows…
+&gt;&gt;&gt;50    <a href="#id841"><span class="problematic" id="id842">|</span></a>david  <a href="#id843"><span class="problematic" id="id844">|</span></a>math   <a href="#id845"><span class="problematic" id="id846">|</span></a>drummond  <a href="#id847"><span class="problematic" id="id848">|</span></a>mrs ruler
+&gt;&gt;&gt;70    <a href="#id849"><span class="problematic" id="id850">|</span></a>esther <a href="#id851"><span class="problematic" id="id852">|</span></a>math   <a href="#id853"><span class="problematic" id="id854">|</span></a>ecklestone|mrs ruler
+&gt;&gt;&gt;80    <a href="#id855"><span class="problematic" id="id856">|</span></a>esther <a href="#id857"><span class="problematic" id="id858">|</span></a>french <a href="#id859"><span class="problematic" id="id860">|</span></a>ecklestone|dr francois</p>
+</div>
+<div class="section" id="pivot">
+<h2>pivot<a class="headerlink" href="#pivot" title="Permalink to this headline">¶</a></h2>
+<p>&gt;&gt;&gt;x = dictable(x = [1,2,3,4])
+&gt;&gt;&gt;y = dictable(y = [1,2,3,4])
+&gt;&gt;&gt;xy = (x * y)
+&gt;&gt;&gt;xy</p>
+<p>&gt;&gt;&gt;dictable[16 x 2]
+&gt;&gt;&gt;x|y
+&gt;&gt;&gt;1|1
+&gt;&gt;&gt;1|2
+&gt;&gt;&gt;1|3
+&gt;&gt;&gt;…16 rows…
+&gt;&gt;&gt;4|2
+&gt;&gt;&gt;4|3
+&gt;&gt;&gt;4|4</p>
+<p>&gt;&gt;&gt;xy.pivot(‘x’, ‘y’, lambda x, y: x*y)</p>
+<p>&gt;&gt;&gt;dictable[4 x 5]
+&gt;&gt;&gt;x|1  <a href="#id861"><span class="problematic" id="id862">|</span></a>2  <a href="#id863"><span class="problematic" id="id864">|</span></a>3   <a href="#id865"><span class="problematic" id="id866">|</span></a>4
+&gt;&gt;&gt;1|[1]|[2]|[3] <a href="#id867"><span class="problematic" id="id868">|</span></a>[4]
+&gt;&gt;&gt;2|[2]|[4]|[6] <a href="#id869"><span class="problematic" id="id870">|</span></a>[8]
+&gt;&gt;&gt;3|[3]|[6]|[9] <a href="#id871"><span class="problematic" id="id872">|</span></a>[12]
+&gt;&gt;&gt;4|[4]|[8]|[12]|[16]</p>
+<div class="section" id="a-few-observations">
+<h3>a few observations:<a class="headerlink" href="#a-few-observations" title="Permalink to this headline">¶</a></h3>
+<ul class="simple">
+<li><p>as per usual, can provide a function for values in table (indeed columns y) and not just keys</p></li>
+<li><p>the output in the cells come back as a list. This is because sometimes there are more than one row with given x and y, and sometimes there are none:</p></li>
+</ul>
+<p>&gt;&gt;&gt;(xy + xy).exc(lambda x,y: x+y == 5).pivot(‘x’, ‘y’, lambda x, y: x*y)</p>
+<p>&gt;&gt;&gt;dictable[4 x 5]
+&gt;&gt;&gt;x|1     <a href="#id873"><span class="problematic" id="id874">|</span></a>2     <a href="#id875"><span class="problematic" id="id876">|</span></a>3       <a href="#id877"><span class="problematic" id="id878">|</span></a>4
+&gt;&gt;&gt;1|[1, 1]|[2, 2]|[3, 3]  <a href="#id879"><span class="problematic" id="id880">|</span></a>None
+&gt;&gt;&gt;2|[2, 2]|[4, 4]|None    <a href="#id881"><span class="problematic" id="id882">|</span></a>[8, 8]
+&gt;&gt;&gt;3|[3, 3]|None  <a href="#id883"><span class="problematic" id="id884">|</span></a>[9, 9]  <a href="#id885"><span class="problematic" id="id886">|</span></a>[12, 12]
+&gt;&gt;&gt;4|None  <a href="#id887"><span class="problematic" id="id888">|</span></a>[8, 8]|[12, 12]|[16, 16]</p>
+<p>You can apply a sequence of aggregate functions:</p>
+<p>&gt;&gt;&gt;(xy + xy).exc(lambda x,y: x+y == 5).pivot(‘x’, ‘y’, lambda x, y: x*y, lambda v: len(v))</p>
+<p>&gt;&gt;&gt;dictable[4 x 5]
+&gt;&gt;&gt;x|1   <a href="#id889"><span class="problematic" id="id890">|</span></a>2   <a href="#id891"><span class="problematic" id="id892">|</span></a>3   <a href="#id893"><span class="problematic" id="id894">|</span></a>4
+&gt;&gt;&gt;1|2   <a href="#id895"><span class="problematic" id="id896">|</span></a>2   <a href="#id897"><span class="problematic" id="id898">|</span></a>2   <a href="#id899"><span class="problematic" id="id900">|</span></a>None
+&gt;&gt;&gt;2|2   <a href="#id901"><span class="problematic" id="id902">|</span></a>2   <a href="#id903"><span class="problematic" id="id904">|</span></a>None|2
+&gt;&gt;&gt;3|2   <a href="#id905"><span class="problematic" id="id906">|</span></a>None|2   <a href="#id907"><span class="problematic" id="id908">|</span></a>2
+&gt;&gt;&gt;4|None|2   <a href="#id909"><span class="problematic" id="id910">|</span></a>2   <a href="#id911"><span class="problematic" id="id912">|</span></a>2</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pyg</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="base.html">pyg.base</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mongo.html">pyg.mongo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timeseries.html">pyg.timeseries</a></li>
+<li class="toctree-l1"><a class="reference internal" href="base_tutorial.html">tutorial: pyg.base</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dictable_tutorial.html">tutorial: dictable</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mongo_tutorial.html">tutorial: pyg.mongo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timeseries_tutorial.html">tutorial: pyg.timeseries</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cell_tutorial.html">tutorial: simple stock trading</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Yoav Git.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.4.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/dictable_tutorial_old.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

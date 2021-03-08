@@ -1,0 +1,641 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tutorial: pyg.timeseries &#8212; pyg 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="tutorial: pyg.base.cell" href="tutorial_cell.html" />
+    <link rel="prev" title="tutorial: pyg.mongo" href="tutorial_mongo.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="tutorial-pyg-timeseries">
+<h1>tutorial: pyg.timeseries<a class="headerlink" href="#tutorial-pyg-timeseries" title="Permalink to this headline">¶</a></h1>
+<p>Given pandas, why do we need another timeseries library?
+Indeed, pyg.timeseries</p>
+<ul class="simple">
+<li><p>contains very few functions that offer any new functionality above what is available through pandas.</p></li>
+<li><p>for data with no nan, pyg.timeseries and pandas match exactly.</p></li>
+</ul>
+<p>So why? Although pandas is amazing, there are a few features in pyg.timeseries designed to address these issues that are important to us:</p>
+<ul class="simple">
+<li><p>pyg.timeseries works seemlessly on pandas objects and on numpy arrays with no code change.</p></li>
+<li><dl class="simple">
+<dt>pyg.timeseries handles nan consistently across all its functions. For example, for pandas:</dt><dd><ul>
+<li><p>a.expanding() &amp; a.ewm() <strong>ignore</strong> nan’s for calculation and then ffill the result.</p></li>
+<li><p>a.diff(), a.rolling() <strong>include</strong> any nans in the calculation, leading to nan proliferation.</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>pg.timeseries exposes the state of the internal functions. The exposure of internal states allows the speeding up of two very common problems in finance:</dt><dd><ul>
+<li><p>risk calculations, Monte Carlo scenarios: We can run a trading strategy up to today and then generate multiple scenarios and see what-if, without having to rerun the full history.</p></li>
+<li><p>live versus history: pandas is designed to run a full historical simulation. However, once we reach “today”, speed is of the essense and running a full historical simulation every time we ingest a new price, is just too slow. That is why most fast trading is built around fast state-machines. pyg gives you the ability to run two near-identical systems in parallel with almost the same code base: run history overnight and then run today’s code base instantly.</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<p>Performance-wise, pyg is based around just-in-time compiled functions from numba. When run on pd.Series and pd.DataFrame, pyg is broadly equivalent to pandas and when run on numpy arrays, pyg is considerably faster.</p>
+<div class="section" id="using-pyg-timeseries-to-handle-nan">
+<h2>Using pyg.timeseries to handle nan<a class="headerlink" href="#using-pyg-timeseries-to-handle-nan" title="Permalink to this headline">¶</a></h2>
+<p>One of our main issues with pandas is how it handles nan within rolling, diff, and shift functionality.</p>
+<p>We first create a fake timeseries with data and dates over some fake holiday…</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyg</span> <span class="kn">import</span> <span class="o">*</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cal</span> <span class="o">=</span> <span class="n">calendar</span><span class="p">(</span><span class="s1">&#39;dummy&#39;</span><span class="p">,</span> <span class="n">holidays</span> <span class="o">=</span> <span class="p">[</span><span class="n">dt</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">6</span><span class="p">),</span> <span class="n">dt</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">12</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">cal</span><span class="o">.</span><span class="n">drange</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span> <span class="s1">&#39;10b&#39;</span><span class="p">,</span> <span class="s1">&#39;1b&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Now let us assume we want to align this timeseries with other data…</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">dates</span> <span class="o">=</span> <span class="n">drange</span><span class="p">(</span><span class="mi">2000</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="s1">&#39;1b&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">03</span>    <span class="mf">0.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">04</span>    <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">05</span>    <span class="mf">2.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">06</span>    <span class="n">NaN</span>  <span class="c1"># &lt; -- holiday</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">07</span>    <span class="mf">3.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">10</span>    <span class="mf">4.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span>    <span class="mf">5.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">12</span>    <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">13</span>    <span class="mf">6.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">14</span>    <span class="mf">7.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">17</span>    <span class="mf">8.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">18</span>    <span class="mf">9.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">19</span>    <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">20</span>    <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">21</span>    <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dtype</span><span class="p">:</span> <span class="n">float64</span>
+</pre></div>
+</div>
+<div class="section" id="pandas-approach-to-nan">
+<h3>Pandas approach to nan<a class="headerlink" href="#pandas-approach-to-nan" title="Permalink to this headline">¶</a></h3>
+<p>When we have a historic timeseries with nan, a nan is associated with a date for a good reason: perhaps the market was not trading?
+The pandas shift() operator will move the nan to a different date.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">b</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">shift</span><span class="p">()],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>              <span class="mi">0</span>    <span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">03</span>  <span class="mf">0.0</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">04</span>  <span class="mf">1.0</span>  <span class="mf">0.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">05</span>  <span class="mf">2.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">06</span>  <span class="n">NaN</span>  <span class="mf">2.0</span> <span class="c1"># &lt; how can you have a reading here? The market was closed!</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">07</span>  <span class="mf">3.0</span>  <span class="n">NaN</span> <span class="c1"># &lt; suddenly a nan here...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">10</span>  <span class="mf">4.0</span>  <span class="mf">3.0</span>
+</pre></div>
+</div>
+<p>From a conceptual perspective, we find this wrong. It also means that when we come to ask questions about the trading system, if b has nans, b.shift() is likely not to be quite what we need.
+Similarly, let us calculate the 1-day of difference of b, we notice a.diff().reindex() is NOT the same as a.reindex().diff()</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">a</span><span class="o">.</span><span class="n">diff</span><span class="p">()</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">),</span> <span class="n">a</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">()],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>              <span class="mi">0</span>    <span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">03</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">04</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">05</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">06</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">07</span>  <span class="mf">1.0</span>  <span class="n">NaN</span> <span class="c1"># &lt;---- new nan&#39;s appear suddenly..</span>
+</pre></div>
+</div>
+<p>You may think that summing elements and taking their diff are commutative and can be interchanged, but no… diff().cumsum() and cumsum().diff() are very distinct:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">b</span><span class="o">.</span><span class="n">cumsum</span><span class="p">()</span><span class="o">.</span><span class="n">diff</span><span class="p">(),</span> <span class="n">b</span><span class="o">.</span><span class="n">diff</span><span class="p">()</span><span class="o">.</span><span class="n">cumsum</span><span class="p">()],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>              <span class="mi">0</span>    <span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">03</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">04</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">05</span>  <span class="mf">2.0</span>  <span class="mf">2.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">06</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">07</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">10</span>  <span class="mf">4.0</span>  <span class="mf">3.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span>  <span class="mf">5.0</span>  <span class="mf">4.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">12</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">13</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">14</span>  <span class="mf">7.0</span>  <span class="mf">5.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">17</span>  <span class="mf">8.0</span>  <span class="mf">6.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">18</span>  <span class="mf">9.0</span>  <span class="mf">7.0</span>  <span class="c1">##&lt;--- b.diff() proliferated two extra nan so now it sums up to 7 rather than 9</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">19</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">20</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">21</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+</pre></div>
+</div>
+<p>We find this logical trap to lead to many actual errors in code. To avoid that, one ends up forward filling at every opportunity, though forward-filling comes with its own problems.</p>
+</div>
+<div class="section" id="pyg-approach-to-nan">
+<h3>pyg approach to nan<a class="headerlink" href="#pyg-approach-to-nan" title="Permalink to this headline">¶</a></h3>
+<p>Whenever we see nan, we assume we can skip it, it probably was created as a result of reindexing but we assume it is irrelevant to the true underlying data.</p>
+<ul class="simple">
+<li><p>unless explicitly filled/interpolated, any timeseries operation will leave a nan where a nan existed previously.</p></li>
+<li><p>nan is excluded from any calculation and arithmetic so introducing nans (e.g. via resample) does not affect final outcome.</p></li>
+<li><p>the dates where nan occur will not change. even under the shift operator.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p>shift &amp; reindex</p>
+</dd>
+</dl>
+<hr class="docutils" />
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">shift</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)),</span> <span class="n">shift</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">shift</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)),</span> <span class="n">shift</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>              <span class="mi">0</span>    <span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">03</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">04</span>  <span class="mf">0.0</span>  <span class="mf">0.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">05</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">06</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">07</span>  <span class="mf">2.0</span>  <span class="mf">2.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">10</span>  <span class="mf">3.0</span>  <span class="mf">3.0</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p>diff &amp; reindex</p>
+</dd>
+</dl>
+<hr class="docutils" />
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">diff</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)),</span> <span class="n">diff</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">diff</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)),</span> <span class="n">diff</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">dates</span><span class="p">)],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>              <span class="mi">0</span>    <span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">03</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">04</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">05</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">06</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">07</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span> <span class="c1"># &lt;--- no new nan</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p>diff &amp; cumsum</p>
+</dd>
+</dl>
+<hr class="docutils" />
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">cumsum</span><span class="p">(</span><span class="n">diff</span><span class="p">(</span><span class="n">b</span><span class="p">)),</span> <span class="n">diff</span><span class="p">(</span><span class="n">cumsum</span><span class="p">(</span><span class="n">b</span><span class="p">)))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">cumsum</span><span class="p">(</span><span class="n">diff</span><span class="p">(</span><span class="n">b</span><span class="p">)),</span> <span class="n">diff</span><span class="p">(</span><span class="n">cumsum</span><span class="p">(</span><span class="n">b</span><span class="p">))],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>              <span class="mi">0</span>    <span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">03</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">04</span>  <span class="mf">1.0</span>  <span class="mf">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">05</span>  <span class="mf">2.0</span>  <span class="mf">2.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">06</span>  <span class="n">NaN</span>  <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">07</span>  <span class="mf">3.0</span>  <span class="mf">3.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">10</span>  <span class="mf">4.0</span>  <span class="mf">4.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2000</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span>  <span class="mf">5.0</span>  <span class="mf">5.0</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="using-pyg-timeseries-to-manage-state">
+<h2>Using pyg.timeseries to manage state<a class="headerlink" href="#using-pyg-timeseries-to-manage-state" title="Permalink to this headline">¶</a></h2>
+<p>One of the problem in timeseries analysis is writing research code that works in analysing past data but ideally, the same code can be used in live application.
+One easy approach is “stick the extra data point at the end and run it again from 1980”. This leaves us with a single code base but for many live applications (e.g. live trading), this is not viable.</p>
+<p>Further, given our positions today, we may want to run simulations of “what happens next?” to understand what the system is likely to do should various events occur.
+Risk calculations are expensive and re-running 10k Monte Carlo scenarios, each time running from 1980 is expensive.</p>
+<p>Conversely, we can run research and live systems on two separate code base. This makes live systems responsive but six months down the line, we realise research code base and live code base did not do quite the same thing.</p>
+<p>pyg approaches this problem by exposing the internal state of each of its calculation. Each function has two versions:</p>
+<ul class="simple">
+<li><p>function(…) returns the calculation as performed by pandas</p></li>
+<li><p>function_(…) returns a dictionary of dict(data = , state = ). The data agrees with function(…) while the state is a dict we can instantiate new calculations with.</p></li>
+</ul>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyg</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">history</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1000</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">1000</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">history_signal</span> <span class="o">=</span> <span class="n">ewma_</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">history_signal</span><span class="o">.</span><span class="n">data</span><span class="o">-</span><span class="n">history</span><span class="o">.</span><span class="n">ewm</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">&lt;</span><span class="mf">1e-10</span> <span class="c1">### history_signal.data is same as pandas</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">live</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">10</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="mi">9</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">live_signal</span> <span class="o">=</span> <span class="n">ewma</span><span class="p">(</span><span class="n">live</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="o">**</span><span class="n">history_signal</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1">#### now let us do this by &#39;sticking the two together&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">joint_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">history</span><span class="p">,</span> <span class="n">live</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">joint_signal</span> <span class="o">=</span> <span class="n">ewma</span><span class="p">(</span><span class="n">joint_data</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">live_signal</span><span class="p">,</span> <span class="n">joint_signal</span><span class="p">[</span><span class="n">dt</span><span class="p">(</span><span class="mi">0</span><span class="p">):])</span>  <span class="c1"># The live signal is the same, even though it only received live data for its calculation.</span>
+</pre></div>
+</div>
+<p>This allows us to set up two parallel calculations:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 27%" />
+<col style="width: 27%" />
+<col style="width: 23%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>workflow</p></th>
+<th class="head"><p>historic data</p></th>
+<th class="head"><p>live data</p></th>
+<th class="head"><p>risk analysis</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>when run?</p></td>
+<td><p>research/overnight</p></td>
+<td><p>live</p></td>
+<td><p>overnight</p></td>
+</tr>
+<tr class="row-odd"><td><p>data source?</p></td>
+<td><p>ts = long timeseries</p></td>
+<td><p>a = short ts/array</p></td>
+<td><p>1000’s of sims</p></td>
+</tr>
+<tr class="row-even"><td><p>speed?</p></td>
+<td><p>long, non-critical</p></td>
+<td><p>instantenous</p></td>
+<td><p>quick</p></td>
+</tr>
+<tr class="row-odd"><td><p>apply f to data</p></td>
+<td><p><a href="#id7"><span class="problematic" id="id8">x_</span></a> = f_(ts)</p></td>
+<td><p>x = f(a, <a href="#id1"><span class="problematic" id="id2">**</span></a><a href="#id9"><span class="problematic" id="id10">x_</span></a>)</p></td>
+<td><p>same as live</p></td>
+</tr>
+<tr class="row-even"><td><p>apply g</p></td>
+<td><p><a href="#id11"><span class="problematic" id="id12">y_</span></a> = g_(ts, <a href="#id13"><span class="problematic" id="id14">x_</span></a>)</p></td>
+<td><p>y = g(a, x, <a href="#id3"><span class="problematic" id="id4">**</span></a><a href="#id15"><span class="problematic" id="id16">y_</span></a>)</p></td>
+<td><p>same as live</p></td>
+</tr>
+<tr class="row-odd"><td><p>final result h</p></td>
+<td><p><a href="#id17"><span class="problematic" id="id18">z_</span></a> = h_(ts, <a href="#id19"><span class="problematic" id="id20">x_</span></a>, <a href="#id21"><span class="problematic" id="id22">y_</span></a>)</p></td>
+<td><p>z = h(a, x, y, <a href="#id5"><span class="problematic" id="id6">**</span></a><a href="#id23"><span class="problematic" id="id24">z_</span></a>)</p></td>
+<td><p>same as live</p></td>
+</tr>
+</tbody>
+</table>
+<p>Note that for live trading or risk analysis, we tend to switch and run on numpy arrays rather than pandas object. This speeds up the calculations while introduces no code change.
+In the example below we explore how to create state-aware, functions within pyg.
+The paradigm is that for most functions, <a href="#id25"><span class="problematic" id="id26">function_</span></a> will return not just the timeseries output but also the states.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">pandas_crossover</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="n">vol</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">fast_ewma</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">ewm</span><span class="p">(</span><span class="n">fast</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">slow_ewma</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">ewm</span><span class="p">(</span><span class="n">slow</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">raw_signal</span> <span class="o">=</span> <span class="n">fast_ewma</span> <span class="o">-</span> <span class="n">slow_ewma</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">signal_rms</span> <span class="o">=</span> <span class="p">(</span><span class="n">raw_signal</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">ewm</span><span class="p">(</span><span class="n">vol</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">**</span><span class="mf">0.5</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">signal_rms</span><span class="p">[</span><span class="n">signal_rms</span><span class="o">==</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">normalized</span> <span class="o">=</span> <span class="n">raw_signal</span><span class="o">/</span><span class="n">signal_rms</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">normalized</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">10000</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9999</span><span class="p">));</span> <span class="n">fast</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span> <span class="n">slow</span> <span class="o">=</span> <span class="mi">30</span><span class="p">;</span> <span class="n">vol</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pandas_x</span> <span class="o">=</span> <span class="n">pandas_crossover</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="n">vol</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We can quickly rewrite it using pyg:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">crossover</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="n">vol</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">fast_ewma</span> <span class="o">=</span> <span class="n">ewma</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">slow_ewma</span> <span class="o">=</span> <span class="n">ewma</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">slow</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">raw_signal</span> <span class="o">=</span> <span class="n">fast_ewma</span> <span class="o">-</span> <span class="n">slow_ewma</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">signal_rms</span> <span class="o">=</span> <span class="n">ewmrms</span><span class="p">(</span><span class="n">raw_signal</span><span class="p">,</span> <span class="n">vol</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">normalized</span> <span class="o">=</span> <span class="n">raw_signal</span><span class="o">/</span><span class="n">v2na</span><span class="p">(</span><span class="n">signal_rms</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">normalized</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">crossover</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="n">vol</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">pandas_x</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">&lt;</span><span class="mf">1e-10</span>
+</pre></div>
+</div>
+<p>And with very little additional effort, we can write a new function that also exposes the internal state:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">_data</span> <span class="o">=</span> <span class="s1">&#39;data&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">crossover_</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="n">vol</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">state</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">state</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">(</span><span class="n">fast</span> <span class="o">=</span> <span class="p">{},</span> <span class="n">slow</span> <span class="o">=</span> <span class="p">{},</span> <span class="n">vol</span> <span class="o">=</span> <span class="p">{})</span> <span class="k">if</span> <span class="n">state</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">state</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">fast_ewma_</span> <span class="o">=</span> <span class="n">ewma_</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="o">**</span><span class="n">state</span><span class="o">.</span><span class="n">fast</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">slow_ewma_</span> <span class="o">=</span> <span class="n">ewma_</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="o">**</span><span class="n">state</span><span class="o">.</span><span class="n">slow</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">raw_signal</span> <span class="o">=</span> <span class="n">fast_ewma_</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">_data</span><span class="p">)</span> <span class="o">-</span> <span class="n">slow_ewma_</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">_data</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">signal_rms</span> <span class="o">=</span> <span class="n">ewmrms_</span><span class="p">(</span><span class="n">raw_signal</span><span class="p">,</span> <span class="n">vol</span><span class="p">,</span> <span class="o">**</span><span class="n">state</span><span class="o">.</span><span class="n">vol</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">normalized</span> <span class="o">=</span> <span class="n">raw_signal</span><span class="o">/</span><span class="n">v2na</span><span class="p">(</span><span class="n">signal_rms</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">_data</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">Dict</span><span class="p">(</span><span class="n">data</span> <span class="o">=</span> <span class="n">normalized</span><span class="p">,</span> <span class="n">state</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">(</span><span class="n">fast</span> <span class="o">=</span> <span class="n">fast_ewma_</span><span class="p">,</span> <span class="n">slow</span> <span class="o">=</span> <span class="n">slow_ewma_</span><span class="p">,</span> <span class="n">vol</span> <span class="o">=</span> <span class="n">signal_rms</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_</span> <span class="o">=</span> <span class="n">crossover_</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="n">vol</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x_</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The three give idential results and we can also verify that <a href="#id27"><span class="problematic" id="id28">crossover_</span></a> will allow us to split the evaluation to the long-history and the new data:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">history</span> <span class="o">=</span> <span class="n">a</span><span class="p">[:</span><span class="mi">9900</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">live</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">9900</span><span class="p">:]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_history</span> <span class="o">=</span> <span class="n">crossover_</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_live</span> <span class="o">=</span> <span class="n">crossover_</span><span class="p">(</span><span class="n">live</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="o">**</span><span class="n">x_history</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_</span> <span class="o">=</span> <span class="n">crossover_</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">fast</span><span class="p">,</span> <span class="n">slow</span><span class="p">,</span> <span class="n">vol</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">x_live</span><span class="o">.</span><span class="n">data</span> <span class="p">,</span> <span class="n">x_</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">9900</span><span class="p">:])</span>
+</pre></div>
+</div>
+<p>Have we gained anything?</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">pandas_old</span> <span class="o">=</span> <span class="n">timer</span><span class="p">(</span><span class="n">pandas_crossover</span><span class="p">,</span> <span class="mi">100</span><span class="p">)(</span><span class="n">history</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_history</span>  <span class="o">=</span> <span class="n">timer</span><span class="p">(</span><span class="n">crossover_</span><span class="p">,</span> <span class="mi">100</span><span class="p">)(</span><span class="n">history</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_live</span> <span class="o">=</span> <span class="n">timer</span><span class="p">(</span><span class="n">crossover_</span><span class="p">,</span> <span class="mi">100</span><span class="p">)(</span><span class="n">live</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="o">**</span><span class="n">x_history</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">TIMER</span><span class="p">:</span><span class="s1">&#39;pandas_crossover&#39;</span> <span class="n">args</span><span class="p">:[[</span><span class="s2">&quot;&lt;class &#39;pandas.core.series.Series&#39;&gt;[9900]&quot;</span><span class="p">,</span> <span class="s1">&#39;10&#39;</span><span class="p">,</span> <span class="s1">&#39;30&#39;</span><span class="p">,</span> <span class="s1">&#39;50&#39;</span><span class="p">],</span> <span class="p">[]]</span> <span class="p">(</span><span class="mi">100</span> <span class="n">runs</span><span class="p">)</span> <span class="n">took</span> <span class="mi">0</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">00.354514</span> <span class="n">sec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">TIMER</span><span class="p">:</span><span class="s1">&#39;crossover_&#39;</span> <span class="n">args</span><span class="p">:[[</span><span class="s2">&quot;&lt;class &#39;pandas.core.series.Series&#39;&gt;[9900]&quot;</span><span class="p">,</span> <span class="s1">&#39;10&#39;</span><span class="p">,</span> <span class="s1">&#39;30&#39;</span><span class="p">,</span> <span class="s1">&#39;50&#39;</span><span class="p">],</span> <span class="p">[]]</span> <span class="p">(</span><span class="mi">100</span> <span class="n">runs</span><span class="p">)</span> <span class="n">took</span> <span class="mi">0</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">00.245859</span> <span class="n">sec</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">TIMER</span><span class="p">:</span><span class="s1">&#39;crossover_&#39;</span> <span class="n">args</span><span class="p">:[[</span><span class="s2">&quot;&lt;class &#39;numpy.ndarray&#39;&gt;[100]&quot;</span><span class="p">,</span> <span class="s1">&#39;10&#39;</span><span class="p">,</span> <span class="s1">&#39;30&#39;</span><span class="p">,</span> <span class="s1">&#39;50&#39;</span><span class="p">]]</span> <span class="p">(</span><span class="mi">100</span> <span class="n">runs</span><span class="p">)</span> <span class="n">took</span> <span class="mi">0</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">00.049970</span> <span class="n">sec</span>
+</pre></div>
+</div>
+<p>We see that pyg is about 50% faster than pandas. Running just the new data using numpy arrays, is about 5 times faster still.
+Indeed, running 10k 100-day forward scenarios take about 2 seconds at most.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">scenarios</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,(</span><span class="mi">100</span><span class="p">,</span><span class="mi">10000</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_scenarios</span> <span class="o">=</span> <span class="n">timer</span><span class="p">(</span><span class="n">crossover_</span><span class="p">)(</span><span class="n">scenarios</span> <span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="o">**</span><span class="n">x_history</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">TIMER</span><span class="p">:</span><span class="s1">&#39;crossover_&#39;</span> <span class="n">args</span><span class="p">:[[</span><span class="s2">&quot;&lt;class &#39;numpy.ndarray&#39;&gt;[100]&quot;</span><span class="p">,</span> <span class="s1">&#39;10&#39;</span><span class="p">,</span> <span class="s1">&#39;30&#39;</span><span class="p">,</span> <span class="s1">&#39;50&#39;</span><span class="p">]]</span> <span class="p">(</span><span class="mi">1</span> <span class="n">runs</span><span class="p">)</span> <span class="n">took</span> <span class="mi">0</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">01.943459</span> <span class="n">sec</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="using-pyg-decorators-in-constructing-timeseries-functions">
+<h2>Using pyg decorators in constructing timeseries functions<a class="headerlink" href="#using-pyg-decorators-in-constructing-timeseries-functions" title="Permalink to this headline">¶</a></h2>
+<p>There are a few decorators that are relevant to timeseries analysis</p>
+<div class="section" id="pd2np-and-compiled">
+<h3>pd2np and compiled<a class="headerlink" href="#pd2np-and-compiled" title="Permalink to this headline">¶</a></h3>
+<p>We write most of our underlying functions assuming the function parameters are 1-d numpy arrays.
+If you want them numba.jit compiled, please use the compiled operator.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyg</span> <span class="kn">import</span> <span class="o">*</span><span class="p">;</span> <span class="kn">import</span> <span class="nn">numba</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@pd2np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@compiled</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">sumsq</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">t2</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">res</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">else</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">t2</span> <span class="o">+=</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">t2</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">res</span>
+</pre></div>
+</div>
+<p>It is not surpising that sumsq works for arrays. Notice how np.isnan is handled to ensure nans are skipped.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res_a</span> <span class="o">=</span> <span class="n">sumsq</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">res_a</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>  <span class="mi">0</span><span class="p">,</span>   <span class="mi">1</span><span class="p">,</span>   <span class="mi">5</span><span class="p">,</span>  <span class="mi">14</span><span class="p">,</span>  <span class="mi">30</span><span class="p">,</span>  <span class="mi">55</span><span class="p">,</span>  <span class="mi">91</span><span class="p">,</span> <span class="mi">140</span><span class="p">,</span> <span class="mi">204</span><span class="p">,</span> <span class="mi">285</span><span class="p">]))</span>
+</pre></div>
+</div>
+<p>pd2np will convert a pandas Series to arrays, run the function and convert back to pandas.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">s</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res_s</span> <span class="o">=</span> <span class="n">sumsq</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">res_s</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">res_a</span><span class="p">,</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>But this will only work for a 1-dimensional objects, so no df nor 2-d np.ndarray.</p>
+</div>
+<div class="section" id="loop">
+<h3>loop<a class="headerlink" href="#loop" title="Permalink to this headline">¶</a></h3>
+<p>We recode the function, this time decorating it with the loop() decorator:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@loop</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@pd2np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@compiled</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">sumsq</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">t2</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">res</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">else</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">t2</span> <span class="o">+=</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">t2</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">res</span>
+</pre></div>
+</div>
+<p>Once we introduce loop, The function will cycle over columns of a DataFrame or a numpy array:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="o">+</span><span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ab</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">values</span>  <span class="c1"># array</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res_df</span> <span class="o">=</span> <span class="n">sumsq</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res_ab</span> <span class="o">=</span> <span class="n">sumsq</span><span class="p">(</span><span class="n">ab</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">res_df</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="n">sumsq</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">b</span> <span class="o">=</span> <span class="n">sumsq</span><span class="p">(</span><span class="n">a</span><span class="o">+</span><span class="mi">1</span><span class="p">)),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">)))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">res_df</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">res_ab</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Indeed, since we asked it to loop over dict and list…</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">sumsq</span><span class="p">([</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">])</span> <span class="p">,</span> <span class="p">[</span><span class="n">sumsq</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">sumsq</span><span class="p">(</span><span class="n">b</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">sumsq</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">))</span> <span class="p">,</span> <span class="nb">dict</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="n">sumsq</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">b</span><span class="o">=</span><span class="n">sumsq</span><span class="p">(</span><span class="n">b</span><span class="p">)))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="using-pyg-to-manage-indexing-and-date-stamps">
+<h2>Using pyg to manage indexing and date stamps<a class="headerlink" href="#using-pyg-to-manage-indexing-and-date-stamps" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="presync">
+<h3>presync<a class="headerlink" href="#presync" title="Permalink to this headline">¶</a></h3>
+<p>Suppose the function takes two (or more) timeseries.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@loop</span><span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@presync</span><span class="p">(</span><span class="n">index</span> <span class="o">=</span> <span class="s1">&#39;inner&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@loop</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@pd2np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">weighted_mean</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">wgt</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="nb">print</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">wgt</span><span class="p">)</span>  <span class="c1"># We put a print statement so easier to see what&#39;s going on...</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">aw</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">w</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">wgt</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+<span class="gp">&gt;&gt;&gt; </span>        <span class="k">else</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">aw</span> <span class="o">+=</span> <span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">wgt</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span>            <span class="n">w</span> <span class="o">+=</span> <span class="n">wgt</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">aw</span><span class="o">/</span><span class="n">w</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1.</span><span class="p">;</span> <span class="n">wgt</span> <span class="o">=</span> <span class="n">a</span><span class="o">+</span><span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="o">+</span><span class="mi">1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">),</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">weighted_mean</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">wgt</span><span class="p">)</span> <span class="o">==</span> <span class="mi">6</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sa</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sb</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">swgt</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">wgt</span><span class="p">,</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>What happens when the weights and the timeseries are unsynchronized? presync will sync all inputs pre calculations</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">weighted_mean</span><span class="p">(</span><span class="n">sa</span><span class="p">,</span> <span class="n">swgt</span><span class="p">)</span> <span class="o">==</span> <span class="mi">6</span><span class="o">+</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">weighted_mean</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="n">sa</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">sb</span><span class="p">),</span> <span class="n">swgt</span><span class="p">)</span> <span class="o">==</span> <span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">6</span><span class="o">+</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">6</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">eq</span><span class="p">(</span><span class="n">weighted_mean</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">swgt</span><span class="p">)</span> <span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">a</span> <span class="o">=</span> <span class="mi">6</span> <span class="o">+</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="mi">7</span> <span class="o">+</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>If you have not used decorators before, this will look daunthing. Once you get used to it, presync and loop will be indispensible.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p>changing presync on the fly</p>
+</dd>
+</dl>
+<hr class="docutils" />
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@presync</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">concat_and_sum</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">args</span> <span class="o">=</span> <span class="n">as_list</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="c1"># this means concat_and_sum(a1,a2,a3) andconcat_and_sum([a1,a2,a3]) work</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sa</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">9</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sb</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">drange</span><span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>There are only 9 overlapping dates between sa and sb as presync (and concat) by default inner-join on index.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">concat_and_sum</span><span class="p">(</span><span class="n">sa</span><span class="p">,</span><span class="n">sb</span><span class="p">))</span> <span class="o">==</span> <span class="mi">9</span>
+</pre></div>
+</div>
+<p>However, concat_and_sum.oj will default to outer-join and</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">concat_and_sum</span><span class="o">.</span><span class="n">oj</span><span class="p">([</span><span class="n">sa</span><span class="p">,</span><span class="n">sb</span><span class="p">]))</span> <span class="o">==</span> <span class="mi">11</span>  <span class="c1"># outer join</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">concat_and_sum</span><span class="o">.</span><span class="n">lj</span><span class="p">([</span><span class="n">sa</span><span class="p">,</span><span class="n">sb</span><span class="p">]))</span> <span class="o">==</span> <span class="mi">10</span>  <span class="c1"># left join, use sa index</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p>presync of numpy arrays.</p>
+</dd>
+</dl>
+<p>We took a slightly different approach:</p>
+<ul class="simple">
+<li><p>We define a global timestamp.</p></li>
+<li><p>We then sample each timeseries to that global timestamp, dropping the early history where the data is all nan. (df_fillna(ts, index, method = ‘fnna’)).</p></li>
+<li><p>We then do our research on these numpy arrays.</p></li>
+<li><p>Finally, once we are done, we resample back to the global timestamp.</p></li>
+</ul>
+<p>While we are in numpy arrays, we can ‘inner join’ by recognising the ‘end’ of each array shares the same date.
+Indeed df_index, df_reindex and presync all work seemlessly on np.ndarray as well as DataFrames, under that assumption that <em>the end of all arrays are in sync</em>.</p>
+<p>We find this approach saves on memory and on computation time. It also lends itself to being able to retrieve and create specific universes for specific trading ideas.
+It is not without its own issues but that is a separate discussion.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p>inner-joining and presync of numpy arrays inputs</p>
+</dd>
+</dl>
+<p>We generate random universe returns of different length:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">universe</span> <span class="o">=</span> <span class="n">dictable</span><span class="p">(</span><span class="n">stock</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;msft&#39;</span><span class="p">,</span> <span class="s1">&#39;appl&#39;</span><span class="p">,</span> <span class="s1">&#39;tsla&#39;</span><span class="p">],</span> <span class="n">n</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10000</span><span class="p">,</span> <span class="mi">8000</span><span class="p">,</span> <span class="mi">7000</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">universe</span> <span class="o">=</span> <span class="n">universe</span><span class="p">(</span><span class="n">rtn_ts</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">n</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">n</span><span class="p">),</span> <span class="n">us</span><span class="o">.</span><span class="n">drange</span><span class="p">(</span><span class="s1">&#39;-</span><span class="si">%i</span><span class="s1">b&#39;</span><span class="o">%</span><span class="n">n</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;1b&#39;</span><span class="p">))[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">n</span><span class="p">)</span><span class="o">&gt;-</span><span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>We convert to arrays and then do some basic maths on it:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">universe</span> <span class="o">=</span> <span class="n">universe</span><span class="p">(</span><span class="n">rtn_ar</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rtn_ts</span><span class="p">:</span> <span class="n">df_reindex</span><span class="p">(</span><span class="n">rtn_ts</span><span class="p">,</span> <span class="n">dates</span><span class="p">,</span> <span class="n">method</span> <span class="o">=</span> <span class="s1">&#39;fnna&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">universe</span> <span class="o">=</span> <span class="n">universe</span><span class="p">(</span><span class="nb">len</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rtn_ar</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">rtn_ar</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">universe</span> <span class="o">=</span> <span class="n">universe</span><span class="p">(</span><span class="n">price</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rtn_ar</span><span class="p">:</span> <span class="n">cumsum</span><span class="p">(</span><span class="n">rtn_ar</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">universe</span> <span class="o">=</span> <span class="n">universe</span><span class="p">(</span><span class="n">vol</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rtn_ar</span><span class="p">:</span> <span class="n">ewmstd</span><span class="p">(</span><span class="n">rtn_ar</span><span class="p">,</span> <span class="mi">30</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">universe</span><span class="o">.</span><span class="n">len</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="mi">10000</span><span class="p">,</span> <span class="mi">7998</span><span class="p">,</span> <span class="mi">7000</span><span class="p">]</span>  <span class="c1"># the first returns of appl happened to be nan</span>
+</pre></div>
+</div>
+<p>Whenever we want, we can inner-join or outer-join specific arrays:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">concat</span> <span class="o">=</span> <span class="n">presync</span><span class="p">(</span><span class="k">lambda</span> <span class="n">tss</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tss</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">concat</span><span class="p">(</span><span class="n">universe</span><span class="o">.</span><span class="n">vol</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">7000</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">concat</span><span class="o">.</span><span class="n">oj</span><span class="p">(</span><span class="n">universe</span><span class="o">.</span><span class="n">vol</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">(</span><span class="mi">10000</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>When we are done, we can reindex it back to a pandas DataFrame/Series</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">np_reindex</span><span class="p">(</span><span class="n">concat</span><span class="o">.</span><span class="n">oj</span><span class="p">(</span><span class="n">universe</span><span class="o">.</span><span class="n">vol</span><span class="p">),</span> <span class="n">index</span> <span class="o">=</span> <span class="n">dates</span><span class="p">,</span> <span class="n">columns</span> <span class="o">=</span> <span class="n">universe</span><span class="o">.</span><span class="n">stock</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span>                <span class="n">msft</span>      <span class="n">appl</span>      <span class="n">tsla</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">1982</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">13</span>       <span class="n">NaN</span>       <span class="n">NaN</span>       <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">1982</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">14</span>       <span class="n">NaN</span>       <span class="n">NaN</span>       <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">1982</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">15</span>       <span class="n">NaN</span>       <span class="n">NaN</span>       <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">1982</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">18</span>       <span class="n">NaN</span>       <span class="n">NaN</span>       <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">1982</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">19</span>       <span class="n">NaN</span>       <span class="n">NaN</span>       <span class="n">NaN</span>
+<span class="gp">&gt;&gt;&gt; </span>             <span class="o">...</span>       <span class="o">...</span>       <span class="o">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">03</span>  <span class="mf">0.985049</span>  <span class="mf">0.920324</span>  <span class="mf">1.089791</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">04</span>  <span class="mf">0.970382</span>  <span class="mf">0.906128</span>  <span class="mf">1.073437</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">05</span>  <span class="mf">0.971823</span>       <span class="n">NaN</span>  <span class="mf">1.085482</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">08</span>       <span class="n">NaN</span>  <span class="mf">0.891668</span>  <span class="mf">1.132042</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="mi">2021</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">09</span>  <span class="mf">1.033889</span>  <span class="mf">0.880831</span>  <span class="mf">1.119209</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="mi">10000</span> <span class="n">rows</span> <span class="n">x</span> <span class="mi">3</span> <span class="n">columns</span><span class="p">]</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pyg</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="base.html">pyg.base</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mongo.html">pyg.mongo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timeseries.html">pyg.timeseries</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial_dict.html">tutorial: pyg.base</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lab/tutorial_dictable.html">tutorial: pyg.base.dictable</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial_mongo.html">tutorial: pyg.mongo</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">tutorial: pyg.timeseries</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#using-pyg-timeseries-to-handle-nan">Using pyg.timeseries to handle nan</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pandas-approach-to-nan">Pandas approach to nan</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyg-approach-to-nan">pyg approach to nan</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#using-pyg-timeseries-to-manage-state">Using pyg.timeseries to manage state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#using-pyg-decorators-in-constructing-timeseries-functions">Using pyg decorators in constructing timeseries functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pd2np-and-compiled">pd2np and compiled</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#loop">loop</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#using-pyg-to-manage-indexing-and-date-stamps">Using pyg to manage indexing and date stamps</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#presync">presync</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial_cell.html">tutorial: pyg.base.cell</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="tutorial_mongo.html" title="previous chapter">tutorial: pyg.mongo</a></li>
+      <li>Next: <a href="tutorial_cell.html" title="next chapter">tutorial: pyg.base.cell</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Yoav Git.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.4.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/tutorial_timeseries.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
