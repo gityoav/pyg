@@ -8,6 +8,7 @@
 **/.pylint.d/**
 **/.pytestcache/**
 **/htmlcov/**
+**/src/pyg/old/**
 **/docs/_build/**
 **/docs/lab/.ipynb_checkpoints/**
 
