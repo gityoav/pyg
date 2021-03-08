@@ -3,8 +3,13 @@
 *.pyc
 
 # spyder
+**/.vscode/**
 **/.spyproject/**
+**/.pylint.d/**
 **/.pytestcache/**
+**/htmlcov/**
+**/docs/_build/**
+**/docs/lab/.ipynb_checkpoints/**
 
 # build files
 **/dist/**
@@ -14,6 +19,7 @@
 *.bz
 *.tar
 *.zip
+*.coverage
 
 # temp files
 \#*
