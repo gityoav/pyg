@@ -22,8 +22,10 @@ def rolling_min(a, n, axis = 0, data = None, state = None):
         size of rolling window
     axis : int, optional
         0/1/-1. The default is 0.    
-    vec,data:
-        state parameters to instantiate the calculation. vec = recent history
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -120,8 +122,10 @@ def expanding_min(a, axis = 0, data = None, state = None):
     axis : int, optional
         0/1/-1. The default is 0.
     
-    m,data:
-        state parameters to instantiate the calculation. m = min so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------

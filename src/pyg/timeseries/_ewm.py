@@ -298,8 +298,10 @@ def ewma(a, n, time = None, axis = 0, data = None, state = None):
             - the ewm calculation on last observations per day is what is retained. 
             - the ewm calculation on each intraday observation is same as an ewm(past EOD + current intraday observation)
     
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
     state: dict, optional
-        state parameters and are used to instantiate what the current average is based on history. 
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
     
     :Example: matching pandas
     -------------------------
@@ -398,8 +400,10 @@ def ewmrms(a, n, time=None, axis=0, data = None, state = None):
             - the ewm calculation on last observations per day is what is retained. 
             - the ewm calculation on each intraday observation is same as an ewm(past EOD + current intraday observation)
     
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
     state: dict, optional
-        state parameters and are used to instantiate what the current average is based on history. 
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
     
     :Example: matching pandas
     -------------------------
@@ -497,8 +501,10 @@ def ewmstd(a, n, time = None, min_sample=0.25, bias = False, axis=0, data = None
             - the ewm calculation on last observations per day is what is retained. 
             - the ewm calculation on each intraday observation is same as an ewm(past EOD + current intraday observation)
     
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
     state: dict, optional
-        state parameters and are used to instantiate what the current average is based on history. 
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
     
     :Example: matching pandas
     -------------------------
@@ -587,8 +593,10 @@ def ewmvar(a, n, time = None, min_sample=0.25, bias = False, axis=0, data = None
             - the ewm calculation on last observations per day is what is retained. 
             - the ewm calculation on each intraday observation is same as an ewm(past EOD + current intraday observation)
     
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
     state: dict, optional
-        state parameters and are used to instantiate what the current average is based on history. 
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
     
     :Example: matching pandas
     -------------------------
@@ -749,8 +757,10 @@ def ewmskew(a, n, time = None, bias = False, min_sample = 0.25, axis=0, data = N
             - the ewm calculation on last observations per day is what is retained. 
             - the ewm calculation on each intraday observation is same as an ewm(past EOD + current intraday observation)
     
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
     state: dict, optional
-        state parameters and are used to instantiate what the current average is based on history. 
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
     
     :Example: matching pandas
     -------------------------

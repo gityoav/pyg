@@ -345,7 +345,19 @@ def ffill(a, n=0, axis = 0, data = None, state = None):
     """
     returns a forward filled array, up to n values forward. 
     supports state manegement which is needed if we want only nth
+
     
+    :Parameters:
+    ------------
+    a : array/timeseries
+        array/timeseries
+    n: int, optional, default = 1
+        window size
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
+
     :Example:
     ---------
     >>> a = np.array([np.nan,np.nan,1,np.nan,np.nan,2,np.nan,np.nan,np.nan])
@@ -369,7 +381,7 @@ ffill_.output = ['data', 'state']
 def v2na(a, old = 0.0, new = np.nan):
     """
     replaces an old value with a new value (default is nan)
-    
+
     :Examples:
     --------------
     >>> from pyg import *
@@ -423,6 +435,18 @@ def diff(a, n=1, axis = 0, data = None, state = None):
     """
     equivalent to a.diff(n) in pandas if there are no nans. If there are, we SKIP nans rather than propagate them.
 
+    :Parameters:
+    ------------
+    a : array/timeseries
+        array/timeseries
+    n: int, optional, default = 1
+        window size
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
+
+
     :Example: : matching pandas no nan's
     ----------------------------------------------------------
     >>> from pyg import *; import pandas as pd; import numpy as np
@@ -443,6 +467,11 @@ def diff(a, n=1, axis = 0, data = None, state = None):
     return first_(_diff1(a, vec = state.vec, axis = axis) if n == 1 else _diff(a, n, axis = axis, **state))
 
 def diff_(a, n=1, axis = 0, data = None, instate = None):
+    """
+    returns a forward filled array, up to n values forward. 
+    Equivalent to diff(a,n) but returns the full state. See diff for full details
+  
+    """
     if n == 0:
         return Dict(data = a - a, state = instate)
     state = instate or Dict(vec = None, i = 0) 
@@ -461,6 +490,10 @@ def shift(a, n=1, axis = 0, data = None, state = None):
         timeseries
     n: int
         size of rolling window
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example:
     ---------
@@ -495,6 +528,10 @@ def shift(a, n=1, axis = 0, data = None, state = None):
     return first_(_shift1(a, state.vec, axis = axis) if n == 1 else _shift(a, n, axis = axis, **state))
 
 def shift_(a, n=1, axis = 0, instate = None):
+    """
+    Equivalent to shift(a,n) but returns the full state. See shift for full details
+  
+    """
     if n == 0:
         return Dict(data = a, state = instate)
     state = instate or Dict(vec = None, i = 0,)
@@ -513,6 +550,11 @@ def ratio(a, n=1, data = None, state = None):
         timeseries
     n: int
         size of rolling window
+
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
             
     :Example:
     ---------

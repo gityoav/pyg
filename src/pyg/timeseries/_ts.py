@@ -164,14 +164,27 @@ def ts_sum(a, axis = 0, data = None, state = None):
     - supports numpy arrays 
     - handles nan
     - supports state management
-    - pandas is actually faster on count
+
+    :Parameters:
+    ------------
+    a : array, pd.Series, pd.DataFrame or list/dict of these
+        timeseries
+        
+    axis : int, optional
+        0/1/-1. The default is 0.
+
+    data: None
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
     
-    >>> # create sample data:
-    >>> from pyg import *; import pandas as pd; import numpy as np
-    >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999)); a[a>0] = np.nan
 
     :Example: pandas matching
     -----------------------------------
+    >>> # create sample data:
+    >>> from pyg import *; import pandas as pd; import numpy as np
+    >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999)); a[a>0] = np.nan
     >>> assert ts_sum(a) == a.sum()
 
     :Example: numpy 
@@ -210,12 +223,25 @@ def ts_mean(a, axis = 0, data = None, state = None):
     - supports state management
     - pandas is actually faster on count
     
-    >>> # create sample data:
-    >>> from pyg import *; import pandas as pd; import numpy as np
-    >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999)); a[a>0] = np.nan
+    :Parameters:
+    ------------
+    a : array, pd.Series, pd.DataFrame or list/dict of these
+        timeseries
+        
+    axis : int, optional
+        0/1/-1. The default is 0.
+
+    data: None
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
 
     :Example: pandas matching
     -----------------------------------
+    >>> # create sample data:
+    >>> from pyg import *; import pandas as pd; import numpy as np
+    >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999)); a[a>0] = np.nan
     >>> assert ts_mean(a) == a.mean()
 
     :Example: numpy 
@@ -295,6 +321,20 @@ def ts_rms(a, axis = 0, data = None, state = None):
     """
     ts_rms(a) is equivalent to (a**2).mean()**0.5
     
+    :Parameters:
+    ------------
+    a : array, pd.Series, pd.DataFrame or list/dict of these
+        timeseries
+        
+    axis : int, optional
+        0/1/-1. The default is 0.
+
+    data: None
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
+
     - supports numpy arrays 
     - handles nan
     - supports state management
@@ -345,12 +385,25 @@ def ts_skew(a, bias = False, min_sample = 0.25, axis = 0, data = None, state = N
     - faster than pandas
     - supports state management
     
-    >>> # create sample data:
-    >>> from pyg import *; import pandas as pd; import numpy as np
-    >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999)); a[a>0] = np.nan
+    :Parameters:
+    ------------
+    a : array, pd.Series, pd.DataFrame or list/dict of these
+        timeseries
+        
+    axis : int, optional
+        0/1/-1. The default is 0.
+
+    data: None
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
 
     :Example: pandas matching
     -----------------------------------
+    >>> # create sample data:
+    >>> from pyg import *; import pandas as pd; import numpy as np
+    >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999)); a[a>0] = np.nan
     >>> assert abs(ts_skew(a, 0) - a.skew())<1e-13
 
     :Example: numpy 

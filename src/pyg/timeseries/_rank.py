@@ -11,6 +11,22 @@ def rolling_rank(a, n, axis = 0, data = None, state = None):
     - works on mumpy arrays too
     - skips nan, no ffill
     
+    :Parameters:
+    ------------
+    a : array, pd.Series, pd.DataFrame or list/dict of these
+        timeseries
+        
+    n: int
+        window size 
+
+    axis : int, optional
+        0/1/-1. The default is 0.
+
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
+    
     :Example:
     -------
     >>> from pyg import *; import pandas as pd; import numpy as np
@@ -53,6 +69,14 @@ def expanding_rank(a, axis = 0):
     - works on mumpy arrays too
     - skips nan, no ffill
     
+    :Parameters:
+    ------------
+    a : array, pd.Series, pd.DataFrame or list/dict of these
+        timeseries
+        
+    axis : int, optional
+        0/1/-1. The default is 0.
+
     :Example:
     -------
     >>> from pyg import *; import pandas as pd; import numpy as np

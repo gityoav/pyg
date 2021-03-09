@@ -119,10 +119,80 @@ def _expanding_skew(a, bias, t0 = 0., t1 = 0., t2 = 0., t3 = 0.):
 
 
 def cumprod(a, axis = 0, data = None, state = None):
+    """
+    equivalent to pandas np.exp(np.log(a).expanding().sum()).
+    
+    - works with np.arrays
+    - handles nan without forward filling.
+    - supports state parameters
+    
+    :Parameters:
+    ------------
+    a : array, pd.Series, pd.DataFrame or list/dict of these
+        timeseries
+        
+    axis : int, optional
+        0/1/-1. The default is 0.
+    
+    data: None
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
+        
+    :Example: agreement with pandas
+    --------------------------------
+    >>> from pyg import *; import pandas as pd; import numpy as np
+    >>> a = 1 + pd.Series(np.random.normal(0.001,0.05,10000), drange(-9999))
+    >>> panda = np.exp(np.log(a).expanding().sum()); ts = cumprod(a)
+    >>> assert abs(ts-panda).max() < 1e-10
+
+    :Example: nan handling
+    ----------------------
+    Unlike pandas, timeseries does not forward fill the nans.    
+
+    >>> a = 1 + pd.Series(np.random.normal(-0.01,0.05,100), drange(-99, 2020))
+    >>> a[a<0.975] = np.nan
+    >>> panda = np.exp(np.log(a).expanding().sum()); ts = cumprod(a)
+    
+    >>> pd.concat([panda,ts], axis=1)
+    >>> 2019-09-24  1.037161  1.037161
+    >>> 2019-09-25  1.050378  1.050378
+    >>> 2019-09-26  1.158734  1.158734
+    >>> 2019-09-27  1.158734       NaN
+    >>> 2019-09-28  1.219402  1.219402
+    >>>              ...       ...
+    >>> 2019-12-28  4.032919  4.032919
+    >>> 2019-12-29  4.032919       NaN
+    >>> 2019-12-30  4.180120  4.180120
+    >>> 2019-12-31  4.180120       NaN
+    >>> 2020-01-01  4.244261  4.244261
+    
+    :Example: state management
+    --------------------------
+    One can split the calculation and run old and new data separately.
+
+    >>> old = a.iloc[:50]        
+    >>> new = a.iloc[50:]    
+    >>> ts = cumprod(a)
+    >>> old_ts = cumprod_(old)
+    >>> new_ts = cumprod(new, **old_ts)    
+    >>> assert eq(new_ts, ts.iloc[50:])
+
+    :Example: dict/list inputs
+    ---------------------------
+    >>> assert eq(cumprod(dict(x = a, y = a**2)), dict(x = cumprod(a), y = cumprod(a**2)))
+    >>> assert eq(cumprod([a,a**2]), [cumprod(a), cumprod(a**2)])
+
+    """
     state = state or {}
     return first_(_cumprod(a, axis = axis, **state))
 
 def cumprod_(a, axis = 0, data = None, instate = None):
+    """
+    Equivalent to cumprod(a) but returns also the state variable. 
+    For full documentation, look at cumprod.__doc__
+    """
     state = instate or {}
     return _data_state(['data','t1'], _cumprod(a, axis = axis, **state))
 
@@ -148,8 +218,10 @@ def expanding_mean(a, axis = 0, data = None, state = None):
     axis : int, optional
         0/1/-1. The default is 0.
     
-    t0,t1,data:
-        state parameters to instantiate the calculation. t0 = total points so far, t2 = total(a) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -214,8 +286,10 @@ def expanding_rms(a, axis = 0, data = None, state = None):
     axis : int, optional
         0/1/-1. The default is 0.
     
-    t0,t2,data:
-        state parameters to instantiate the calculation. t0 = total points so far, t2 = total(x^2) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
 
     :Example: agreement with pandas
@@ -282,8 +356,11 @@ def expanding_sum(a, axis = 0, data = None, state = None):
     axis : int, optional
         0/1/-1. The default is 0.
     
-    t0,t1,data:
-        state parameters to instantiate the calculation. t0 = total points so far, t2 = total(a) so far
+    data: None
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -349,8 +426,10 @@ def expanding_std(a, axis = 0, data = None, state = None):
     axis : int, optional
         0/1/-1. The default is 0.
     
-    t0,t1,t2,data:
-        state parameters to instantiate the calculation. t0,t1,t2= total(points),total(a),total(a**2) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -416,8 +495,10 @@ def expanding_skew(a, bias = False, axis = 0, data = None, state = None):
     axis : int, optional
         0/1/-1. The default is 0.
     
-    t0,t1,t2,t3,data:
-        state parameters to instantiate the calculation. t0,t1,t2= total(points),total(a),total(a**2),total(a**3) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
             
     :Example: state management
     --------------------------
@@ -444,7 +525,7 @@ def expanding_skew(a, bias = False, axis = 0, data = None, state = None):
 
 def expanding_mean_(a, axis = 0, data = None, instate = None):
     """
-    Equivalent to expanding_mean(a) but returns also the state variables t0...t1. 
+    Equivalent to expanding_mean(a) but returns also the state variables. 
     For full documentation, look at expanding_mean.__doc__
     """
     state = instate or {}
@@ -454,7 +535,7 @@ expanding_mean_.output = ['data','state']
 
 def expanding_rms_(a, axis = 0, data = None, instate = None):
     """
-    Equivalent to expanding_rms(a) but returns also the state variables t0...t2. 
+    Equivalent to expanding_rms(a) but returns also the state variables.
     For full documentation, look at expanding_rms.__doc__
     """
     state = instate or {}
@@ -464,7 +545,7 @@ expanding_rms_.output = ['data','state']
 
 def expanding_sum_(a, axis = 0, data = None, instate = None):
     """
-    Equivalent to expanding_sum(a) but returns also the state variables t0...t1. 
+    Equivalent to expanding_sum(a) but returns also the state variables.
     For full documentation, look at expanding_sum.__doc__
     """
     state = instate or {}
@@ -474,7 +555,7 @@ expanding_sum_.output = ['data','state']
 
 def expanding_std_(a, axis = 0, data = None, instate = None):
     """
-    Equivalent to expanding_std(a) but returns also the state variables t0...t2. 
+    Equivalent to expanding_mean(a) but returns also the state variables. 
     For full documentation, look at expanding_std.__doc__
     """
     state = instate or {}
@@ -484,7 +565,7 @@ expanding_std_.output = ['data','state']
 
 def expanding_skew_(a, bias = False, axis = 0, data = None, instate = None):
     """
-    Equivalent to expanding_kew(a) but returns also the state variables t0...t3. 
+    Equivalent to expanding_mean(a) but returns also the state variables. 
     For full documentation, look at expanding_skew.__doc__
     """    
     state = instate or {}
