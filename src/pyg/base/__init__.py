@@ -3,7 +3,7 @@ from pyg.base._as_list import as_list, as_tuple, first, last, passthru, unique, 
 from pyg.base._cell import cell, cell_go, cell_item, cell_func, cell_output
 from pyg.base._dates import dt,dt_bump, today, ymd, TMIN, TMAX, day, futcodes, dt2str, is_bump
 from pyg.base._decorators import kwargs_support, wrapper, try_value, try_back, try_nan, try_none, try_zero, try_false, try_true, try_list, timer
-from pyg.base._dict import Dict, items_to_tree, tree_to_items, tree_update, dict_invert
+from pyg.base._dict import Dict, items_to_tree, tree_items, tree_keys, tree_values, tree_setitem, tree_update, dict_invert
 from pyg.base._dictattr import dictattr, relabel
 from pyg.base._dictable import dictable, dict_concat, is_dictable
 from pyg.base._drange import date_range, drange, calendar, Calendar, clock, as_time

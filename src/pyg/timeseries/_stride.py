@@ -75,6 +75,10 @@ def rolling_quantile(a, n, quantile = 0.5, axis = 0, data = None, state = None):
         window size.
     q : float or list of floats in [0,1]
         quantile(s).
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
 
     :Returns:
     -------

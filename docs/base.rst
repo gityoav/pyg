@@ -228,26 +228,39 @@ read_csv
 tree manipulation
 =================
 Trees are dicts of dicts. just like an item in a dict is (key, value), tree items are just longer tuples: (key1, key2, key3, value)
+We deliberately avoid creating a tree class so that the functionality is available on ordinary tree-like structures.
 
-tree_to_items
+tree_keys
 -------------
-.. autofunction:: pyg.base._dict.tree_to_items
+.. autofunction:: pyg.base._dict.tree_keys
 
-items_to_tree
+tree_values
 -------------
-.. autofunction:: pyg.base._dict.items_to_tree
+.. autofunction:: pyg.base._dict.tree_values
+
+tree_items
+-------------
+.. autofunction:: pyg.base._dict.tree_items
 
 tree_update
 -----------
 .. autofunction:: pyg.base._dict.tree_update
 
-tree_to_table
+tree_setitem
 -------------
-.. autofunction:: pyg.base._tree.tree_to_table
+.. autofunction:: pyg.base._dict.tree_setitem
 
 tree_repr
 -------------
 .. autofunction:: pyg.base._tree_repr.tree_repr
+
+items_to_tree
+-------------
+.. autofunction:: pyg.base._dict.items_to_tree
+
+tree_to_table
+-------------
+.. autofunction:: pyg.base._tree.tree_to_table
 
 
 list functions

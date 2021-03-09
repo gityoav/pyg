@@ -1,14 +1,14 @@
-from _collections_abc import dict_keys
 from pyg.base._dictattr import dictattr
 from pyg.base._decorators import kwargs_support, try_none
-from pyg.base._as_list import as_list, is_rng
+from pyg.base._as_list import as_list, as_tuple
+from pyg.base._types import is_str
 from pyg.base._inspect import getargs
 from pyg.base._eq import in_
 from copy import copy
 
 
 
-__all__ = ['Dict', 'dict_invert', 'items_to_tree', 'tree_to_items', 'tree_update']
+__all__ = ['Dict', 'dict_invert', 'items_to_tree', 'tree_items', 'tree_keys', 'tree_values', 'tree_update', 'tree_setitem']
 
     
 class Dict(dictattr):
@@ -134,7 +134,11 @@ def dict_invert(d):
     return res
 
 
-def _set_item(tree, item, base, ignore, types):
+def _tree_types(types):
+    return (dict, Dict, dictattr) if types is None else as_tuple(types)
+
+
+def _tree_setitem(tree, item, base, ignore, types):
     if len(item)<2:
         raise ValueError('node item too short %s'%item)
     res = tree
@@ -147,7 +151,59 @@ def _set_item(tree, item, base, ignore, types):
     else:
         res[item[-2]] = item[-1]
 
-def tree_to_items(tree, types = (dict, Dict, dictattr)):
+def tree_setitem(tree, key, value, ignore = None, types = None):
+    """
+    sets an item of a tree
+    
+    :Parameters:
+    ----------
+    tree : tree (dicts of dict)
+    key : a dot-separated string or a tuple of values
+        the branch to hang value on
+    value : object
+        the leaf at the end of the branch
+    ignore : None or list, optional
+        what values of leaf will be ignored and not overwrite existing data. The default is None.
+    types : types, optional
+        As we go down the tree, when do we stop and say: what we have is a leaf already?
+
+    :Example:
+    ---------
+    >>> tree = dict()
+    >>> tree_setitem(tree, 'a', 1)
+    >>> assert tree == dict(a = 1)
+    >>> tree_setitem(tree, 'b.c', 2)
+    >>> assert tree == {'a': 1, 'b': {'c': 2}}
+    >>> tree_setitem(tree, ('b','c','d'), 2)
+    >>> tree_setitem(tree, ('b','c','e'), 3)
+    >>> assert tree == {'a': 1, 'b': {'c': {'d': 2, 'e': 3}}}
+
+    :Example: types
+    ---------------
+    >>> from pyg import *
+    >>> tree = dict(mycell = cell(lambda a, b: a * b, b = 2, a = cell(lambda x: x**2, x = cell(lambda y: y*3))))
+    >>> # We are missing y....
+    >>> tree_setitem(tree, 'mycell.a.x.y', 3, types = (dict,cell)) ## drill into cell
+    >>> assert tree['mycell'].a.x.y == 3
+    >>> tree_setitem(tree, 'mycell.a.x.y', 1) ## stop when you hit cell
+    >>> assert tree['mycell'].a.x == dict(y = 1)
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    types = _tree_types(types)
+    ignore = as_list(ignore)
+    base = type(tree)
+    if is_str(key):
+        key = key.split('.')
+    elif isinstance(key, tuple):
+        key = list(key)
+    _tree_setitem(tree, key + [value], base = base, ignore = ignore, types = types)
+
+def tree_items(tree, types = None):
     """
     An extension of dict.items(), returning a list of tuples but of varying length, each a branch of a tree
 
@@ -174,27 +230,27 @@ def tree_to_items(tree, types = (dict, Dict, dictattr)):
                             physics = dict(name = 'richard', surname = 'feyman', grade = 4)
                             ))
 
-    >>> items = tree_to_items(school)
+    >>> items = tree_items(school)
     >>> items 
     
-    [('pupils', 'id1', 'name', 'james'),
-     ('pupils', 'id1', 'surname', 'maxwell'),
-     ('pupils', 'id1', 'gender', 'm'),
-     ('pupils', 'id2', 'name', 'adam'),
-     ('pupils', 'id2', 'surname', 'smith'),
-     ('pupils', 'id2', 'gender', 'm'),
-     ('pupils', 'id3', 'name', 'michell'),
-     ('pupils', 'id3', 'surname', 'obama'),
-     ('pupils', 'id3', 'gender', 'f'),
-     ('teachers', 'math', 'name', 'albert'),
-     ('teachers', 'math', 'surname', 'einstein'),
-     ('teachers', 'math', 'grade', 3),
-     ('teachers', 'english', 'name', 'william'),
-     ('teachers', 'english', 'surname', 'shakespeare'),
-     ('teachers', 'english', 'grade', 3),
-     ('teachers', 'physics', 'name', 'richard'),
-     ('teachers', 'physics', 'surname', 'feyman'),
-     ('teachers', 'physics', 'grade', 4)]
+    >>> [('pupils', 'id1', 'name', 'james'),
+    >>>  ('pupils', 'id1', 'surname', 'maxwell'),
+    >>>  ('pupils', 'id1', 'gender', 'm'),
+    >>>  ('pupils', 'id2', 'name', 'adam'),
+    >>>  ('pupils', 'id2', 'surname', 'smith'),
+    >>>  ('pupils', 'id2', 'gender', 'm'),
+    >>>  ('pupils', 'id3', 'name', 'michell'),
+    >>>  ('pupils', 'id3', 'surname', 'obama'),
+    >>>  ('pupils', 'id3', 'gender', 'f'),
+    >>>  ('teachers', 'math', 'name', 'albert'),
+    >>>  ('teachers', 'math', 'surname', 'einstein'),
+    >>>  ('teachers', 'math', 'grade', 3),
+    >>>  ('teachers', 'english', 'name', 'william'),
+    >>>  ('teachers', 'english', 'surname', 'shakespeare'),
+    >>>  ('teachers', 'english', 'grade', 3),
+    >>>  ('teachers', 'physics', 'name', 'richard'),
+    >>>  ('teachers', 'physics', 'surname', 'feyman'),
+    >>>  ('teachers', 'physics', 'grade', 4)]
     
     #To reverse this, we call:
         
@@ -203,12 +259,55 @@ def tree_to_items(tree, types = (dict, Dict, dictattr)):
     """
     types = (dict, Dict, dictattr) if types is None else as_list(types)
     if type(tree) in types:
-        return sum([[(key,) + item for item in tree_to_items(tree[key], types)] for key in tree], [])
+        return sum([[(key,) + item for item in tree_items(tree[key], types)] for key in tree], [])
     else: # this is a leaf
         return [(tree,)]
     
+def tree_keys(tree, types = None):
+    """
+    returns the keys (branches) of a tree as a list of of tuples
 
-def items_to_tree(items, tree = None, raise_if_duplicate = True, ignore = None, types = (dict, Dict, dictattr)):
+    :Example:
+    ---------
+    >>> tree = dict(a = 1, b = dict(c = 2, d = 3, e = dict(f = 4)))
+    >>> assert tree_keys(tree) == [('a',), ('b', 'c'), ('b', 'd'), ('b', 'e', 'f')]
+
+    :Parameters:
+    ----------
+    tree : tree (dict of dicts)
+    types : types of dicts, optional
+
+    """
+    types = _tree_types(types)
+    if type(tree) in types:
+        return sum([[(key,) + item for item in tree_keys(tree[key], types)] for key in tree], [])
+    else: # this is a leaf
+        return [()]
+    
+def tree_values(tree, types = None):
+    """
+    returns the values (leaf) of a tree (a collection of tuples)
+
+    :Example:
+    ---------
+    >>> tree = dict(a = 1, b = dict(c = 2, d = 3, e = dict(f = 4)))
+    >>> assert tree_values(tree) == [1,2,3,4]
+
+    :Parameters:
+    ----------
+    tree : tree (dict of dicts)
+    types : types of dicts, optional
+
+    """
+    types = _tree_types(types)
+    if type(tree) in types:
+        return sum([[item for item in tree_values(tree[key], types)] for key in tree], [])
+    else: # this is a leaf
+        return [tree]
+
+
+    
+def items_to_tree(items, tree = None, raise_if_duplicate = True, ignore = None, types = None):
     """
     converts **items** to branches of a tree. 
     If an original **tree** is provided, hang the additional branches on the existing tree
@@ -269,6 +368,7 @@ def items_to_tree(items, tree = None, raise_if_duplicate = True, ignore = None, 
     tree : dict of dicts
 
     """
+    types = _tree_types(types)
     if raise_if_duplicate and len(set([tuple(node[:-1]) for node in items])) < len(items):
         raise ValueError('items are not unique and will overwrite each other')
     if tree is None:
@@ -278,7 +378,7 @@ def items_to_tree(items, tree = None, raise_if_duplicate = True, ignore = None, 
     base = type(tree)
     ignore = as_list(ignore)
     for item in items:
-        _set_item(tree, item, base, ignore, types)
+        _tree_setitem(tree, item, base, ignore, types)
     return tree
 
 def tree_update(tree, update, types = (dict, Dict, dictattr), ignore = None):
@@ -293,10 +393,10 @@ def tree_update(tree, update, types = (dict, Dict, dictattr), ignore = None):
 
     >>> print(tree_repr(tree_update(ranking, new_ranking)))
 
-    cambridge:
-        {'trinity': 1, 'stjohns': 2, 'christ': 3}
-    oxford:
-        {'trinity': 1, 'jesus': 2, 'magdalene': 4, 'wolfson': 3}
+    >>> cambridge:
+    >>>     {'trinity': 1, 'stjohns': 2, 'christ': 3}
+    >>> oxford:
+    >>>     {'trinity': 1, 'jesus': 2, 'magdalene': 4, 'wolfson': 3}
 
     Note how values for magdalene in Oxford were overwritten even though they are further down the tree
 
@@ -316,7 +416,7 @@ def tree_update(tree, update, types = (dict, Dict, dictattr), ignore = None):
     update : tree
         new information.
     types : types, optional
-        see tree_to_items. The default is (dict, Dict, dictattr).
+        see tree_items. The default is (dict, Dict, dictattr).
 
     :Returns:
     -------
@@ -324,5 +424,5 @@ def tree_update(tree, update, types = (dict, Dict, dictattr), ignore = None):
         updated tree.
 
     """
-    items = tree_to_items(update, types)
+    items = tree_items(update, types)
     return items_to_tree(items, tree, ignore = ignore, types = types)

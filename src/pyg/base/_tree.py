@@ -8,6 +8,8 @@ def _update(dicts, rhs):
     return dicts
 
 
+
+
 def tree_to_table(tree, pattern):
     """
     The best way to understand is to give an example:

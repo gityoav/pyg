@@ -281,13 +281,7 @@ class perdictable(wrapper):
     >>> res = p(a = a, b = b, data = data, expiry = expiry)
     >>> assert res.find_data(key = 'x').data == 'we calculated this before'
     >>> assert res.find_data(key = 'y').data == 5  # although calculated before, we recalculate as its expiry is in the future
-
-
-    function = lambda a, b: dict(sum = a+b, prod = a*b); function.output = ['sum', 'prod']
-    self = perdictable(function)
-    self(a = 1, b = 2)
-    inputs = dict(a = dictable(a = [1,2,3]), b = 2); expiry = None
-    self(a = dictable(a = [1,2,3]), b = 2)
+    
     """
     def __init__(self, function = None, on = None, renames = None, defaults = None, if_none = False, output_is_input = True, col = 'data', include_inputs = False):
         super(perdictable, self).__init__(function = function, on = on, renames = renames, defaults = defaults, if_none = if_none, output_is_input = output_is_input, col = col, include_inputs  = include_inputs)

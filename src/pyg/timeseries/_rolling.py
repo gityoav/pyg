@@ -591,8 +591,10 @@ def rolling_mean(a, n, axis = 0, data = None, state = None):
         size of rolling window
     axis : int, optional
         0/1/-1. The default is 0.    
-    t0,t1,t2,data:
-        state parameters to instantiate the calculation. t0,t1,t2= total(points),total(a),total(a**2) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -649,8 +651,10 @@ def rolling_rms(a, n, axis = 0, data = None, state = None):
         size of rolling window
     axis : int, optional
         0/1/-1. The default is 0.    
-    t0,t1,t2,data:
-        state parameters to instantiate the calculation. t0,t1,t2= total(points),total(a),total(a**2) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -707,8 +711,10 @@ def rolling_sum(a, n, axis = 0, data = None, state = None):
         size of rolling window
     axis : int, optional
         0/1/-1. The default is 0.    
-    t0,t1,t2,data:
-        state parameters to instantiate the calculation. t0,t1,t2= total(points),total(a),total(a**2) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -764,8 +770,10 @@ def rolling_std(a, n, axis = 0, data = None, state = None):
         size of rolling window
     axis : int, optional
         0/1/-1. The default is 0.    
-    t0,t1,t2,data:
-        state parameters to instantiate the calculation. t0,t1,t2= total(points),total(a),total(a**2) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------
@@ -823,8 +831,10 @@ def rolling_skew(a, n, bias = False, axis = 0, data = None, state = None):
         affects the skew calculation definition, see scipy documentation for details.
     axis : int, optional
         0/1/-1. The default is 0.    
-    t0,t1,t2,t3,vec,i,data:
-        state parameters to instantiate the calculation. t0,t1,t2= total(points),total(a),total(a**2) so far
+    data: None.
+        unused at the moment. Allow code such as func(live, **func_(history)) to work
+    state: dict, optional
+        state parameters used to instantiate the internal calculations, based on history prior to 'a' provided. 
         
     :Example: agreement with pandas
     --------------------------------

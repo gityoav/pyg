@@ -1,4 +1,4 @@
-from pyg import tree_to_items, tree_update, tree_to_table, items_to_tree, tree_repr, is_tree
+from pyg import cell, tree_items, tree_update, tree_keys, tree_values, tree_setitem, tree_to_table, items_to_tree, tree_repr, is_tree
 import numpy as np
 
 tree = dict(school = dict(name = 'Kings Primary', 
@@ -62,8 +62,8 @@ more_items = [('school', 'address', '2 Queens Road'),
 
 items_to_tree(more_items)
 
-def test_tree_to_items():
-    assert tree_to_items(tree) == items
+def test_tree_items():
+    assert tree_items(tree) == items
 
 
 def test_items_to_tree():
@@ -115,3 +115,26 @@ def test_tree_to_table_empties():
     pattern = 'reject/%because/%tree/not/a/tree'
     assert tree_to_table(tree, pattern) == []
     assert tree_to_table('hello', 'hello') == [{}]
+
+
+def test_tree_keys_values():
+    tree = dict(a = 1, b = dict(c = 2, d = 3, e = dict(f = 4)))
+    assert tree_keys(tree) == [('a',), ('b', 'c'), ('b', 'd'), ('b', 'e', 'f')]
+    assert tree_values(tree) == [1,2,3,4]
+    
+    tree = dict(a = 1, b = dict(c = 2, d = 3, e = cell(f = 4)))
+    assert tree_keys(tree) == [('a',), ('b', 'c'), ('b', 'd'), ('b', 'e')]
+    assert tree_values(tree) == [1,2,3,cell(f = 4)]
+    assert tree_keys(tree, (dict, cell)) == [('a',), ('b', 'c'), ('b', 'd'), ('b', 'e', 'f'), ('b', 'e', 'function')]
+    assert tree_values(tree, (dict, cell)) == [1,2,3,4, None]
+
+
+def test_tree_setitem():
+    tree = dict()
+    tree_setitem(tree, 'a', 1)
+    assert tree == dict(a = 1)
+    tree_setitem(tree, 'b.c', 2)
+    assert tree == {'a': 1, 'b': {'c': 2}}
+    tree_setitem(tree, ('b','c','d'), 2)
+    tree_setitem(tree, ('b','c','e'), 3)
+    assert tree == {'a': 1, 'b': {'c': {'d': 2, 'e': 3}}}

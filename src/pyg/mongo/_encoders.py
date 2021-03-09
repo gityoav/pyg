@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from pyg.base import pd_to_parquet, pd_read_parquet, is_pd, is_dict, is_series, is_arr, is_date, dt2str, encode, mkdir, tree_to_items
+from pyg.base import pd_to_parquet, pd_read_parquet, is_pd, is_dict, is_series, is_arr, is_date, dt2str, encode, mkdir, tree_items
 from functools import partial
 
 
@@ -39,7 +39,7 @@ def root_path(doc, root, fmt = None):
     >>> root = 'c:/archive/%report.date/%pupil.name.%pupil.surname/'
     >>> assert root_path(doc, root, '%Y') == 'c:/archive/2000/yoav.git/'  # can choose to format dates by providing a fmt.
     """
-    items = tree_to_items(dict(doc))
+    items = tree_items(dict(doc))
     res = root
     for row in items:
         text = '%' + '.'.join(row[:-1])
