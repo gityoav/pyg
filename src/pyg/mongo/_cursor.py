@@ -26,14 +26,19 @@ class mongo_cursor(mongo_reader):
         - MongoDB free version has limitations on size of document
         - file based system may be faster
         - for data licensing issues, data must not sit on servers but stored on local computer
-
+        - appending is tricky for bytes in Mongo but is relatively easy to do in both .npy and .parquet files:
+            - If you use AWS, you can use awswrangler to append messages to a timeseries
+            https://stackoverflow.com/questions/47191675/pandas-write-dataframe-to-parquet-format-with-append
+            - For numpy appending, https://github.com/xor2k/npy-append-array/ will handle appending of messages for you            
+            
         Therefore, if you set writer to .csv or .parquet, dataframes within will be saved to files first and we store in mongo references to these files.
         
         For this to work, you need to tell us WHERE to store each document and this is how it works: If your document are primary-keyed by name, surname. Then...
         you can set the root centrally using expression like writer = 'c:/%name%surname.parquet'
 
         Alternatively, writer = '.parquet' will encode only documents for which a 'root' key exists. This defers the decision of how to store itself to the cell.
-                    
+
+
     reader : callable or None, optional
         The default is None, using decode. Use reader = False to passthru
     query : dict, optional
