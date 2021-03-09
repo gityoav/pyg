@@ -1,7 +1,7 @@
-from pyg.base import ulist, dictable,Dict
+from pyg.base import ulist, dictable,Dict, pd_read_parquet, eq
 from pyg.mongo import mongo_reader, mongo_cursor, q, mongo_table, mongo_pk_cursor, mongo_pk_reader
 from pyg import *
-import numpy as np
+import numpy as np; import pandas as pd
 import jsonpickle as jp
 import pytest
 
@@ -80,3 +80,21 @@ def test_mongo_table_mode():
 
     with pytest.raises(TypeError):
         mongo_table('test', 'test', mode = mongo_pk_cursor)
+
+
+def test_mongo_cursor_root():
+    t = mongo_table('test', 'test', writer = 'c:/temp/%name/%surname.parquet')
+    t.drop()
+    doc = dict(name = 'adam', surname = 'smith', ts = pd.Series(np.arange(10)))
+    t.insert_one(doc)
+    assert eq(pd_read_parquet('c:/temp/adam/smith/ts.parquet'), doc['ts'])
+    assert eq(t[0]['ts'], doc['ts'])
+    doc = dict(name = 'beth', surname = 'brown', a = np.arange(10))
+    t.drop()
+    t.insert_one(doc)
+    assert eq(np.load('c:/temp/beth/brown/a.npy'), doc['a'])
+    assert eq(t[0]['a'], doc['a'])
+    t.drop()
+
+    
+    

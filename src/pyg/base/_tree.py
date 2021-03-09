@@ -29,6 +29,7 @@ def tree_to_table(tree, pattern):
     >>> assert res == [dict(id = 'id1'), dict(id = 'id2')]
 
     or grades:
+    
     >>> res = tree_to_table(school, 'teachers/%subject/grade/%grade')
     >>> assert res == [{'grade': 3, 'subject': 'math'},
                          {'grade': 3, 'subject': 'english'},

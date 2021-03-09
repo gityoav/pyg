@@ -17,27 +17,17 @@ class mongo_cursor(mongo_reader):
     writer : True/False/string, optional
         The default is None.
         
-        writer determines how data is written onto Mongo. MongoDB is great for manipulating/searching dict keys/values. 
-        If set to None, dataframes will be converted seamlessly to bytes and stored in MongoDB. Most often, this is fine.
+        writer allows you to transform the data before saving it in Mongo. You can create a function yourself or use built-in options:
         
-        At times, the actual dataframes in each doc, we may want to save in a file system. This may be because:
-        - The DataFrames are stored as bytes in MongoDB anyway, so they are not searchable
-        - Storing in files allows other non-python/non-MongoDB users easier access, allowing data to be detached from app
-        - MongoDB free version has limitations on size of document
-        - file based system may be faster
-        - for data licensing issues, data must not sit on servers but stored on local computer
-        - appending is tricky for bytes in Mongo but is relatively easy to do in both .npy and .parquet files:
-            - If you use AWS, you can use awswrangler to append messages to a timeseries
-            https://stackoverflow.com/questions/47191675/pandas-write-dataframe-to-parquet-format-with-append
-            - For numpy appending, https://github.com/xor2k/npy-append-array/ will handle appending of messages for you            
-            
-        Therefore, if you set writer to .csv or .parquet, dataframes within will be saved to files first and we store in mongo references to these files.
+        - False: do nothing, save the document as is
+        - True/None: use pyg.base.encode to encode objects. This will transform numpy array/dataframes into bytes that can be stored
+        - '.csv': save dataframes into csv files and then save reference of these files to mongo
+        - '.parquet' save dataframes into .parquet and np.ndarray into .npy files.
         
-        For this to work, you need to tell us WHERE to store each document and this is how it works: If your document are primary-keyed by name, surname. Then...
-        you can set the root centrally using expression like writer = 'c:/%name%surname.parquet'
-
-        Alternatively, writer = '.parquet' will encode only documents for which a 'root' key exists. This defers the decision of how to store itself to the cell.
-
+        For .csv and .parquet to work, you will need to specify WHERE the document is to be saved. This can be done either:
+        
+        - the document has a 'root' key, specifying the root.
+        - you specify root by setting writer = 'c:/%name%surname.parquet'
 
     reader : callable or None, optional
         The default is None, using decode. Use reader = False to passthru
@@ -67,7 +57,7 @@ class mongo_cursor(mongo_reader):
     >>> assert len(cursor.exc(a = 3)) == 20
     >>> assert len(cursor.find(a = [3,2]).find(q.b<3)) == 6 ## can chain queries as well as use q to create complicated expressions
     
-    :roww access:
+    :row access:
     -------------
     
     >>> cursor[0]
@@ -92,6 +82,18 @@ class mongo_cursor(mongo_reader):
     >>> del cursor['c'] ## delete all c
     >>> cursor.set(c = lambda a, b: a * b)
     >>> assert cursor.find_one(a = 3, b = 2)[0].c == 6
+    
+    :Example: root specification
+    ----------------------------
+    >>> from pyg import *
+    >>> t = mongo_table('test', 'test', writer = 'c:/temp/%name/%surname.parquet')
+    >>> t.drop()
+    >>> doc = dict(name = 'adam', surname = 'smith', ts = pd.Series(np.arange(10)))
+    >>> t.insert_one(doc)
+    >>> assert eq(pd_read_parquet('c:/temp/adam/smith/ts.parquet'), doc['ts'])
+    >>> assert eq(t[0]['ts'], doc['ts'])
+    >>> doc = dict(name = 'beth', surname = 'brown', a = np.arange(10))
+    >>> t.insert_one(doc)
     
     Since mongo_cursor is too powerful, we also have a mongo_reader version which is read-only.
     

@@ -8,7 +8,7 @@ SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = .
 BUILDDIR      = ../../pygio
 PDFBUILDDIR   = /tmp
-PDF           = ../manual.pdf
+PDF           = ../pyg.pdf
 
 # Put it first so that "make" without argument is like "make help".
 help:

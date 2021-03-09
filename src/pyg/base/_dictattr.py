@@ -250,9 +250,12 @@ class dictattr(dict):
         keys = relabel(list(self.keys()), *args, **relabels)
         return type(self)(**{keys.get(k,k) : v for k, v in self.items()})
 
-    rename = relabel
-    rename.__doc__ = """Identical to relabel. See relabel for full docs"""
-
+    def rename(self, *args, **relabels):
+        """
+        Identical to relabel. See relabel for full docs
+        """
+        return self.relabel(*args, **relabels)
+    
 def relabel(keys, *args, **relabels):
     """
     returns a mapping from old keys to new keys

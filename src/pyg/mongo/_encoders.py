@@ -11,6 +11,8 @@ _series = '_is_series'
 _root = 'root'
 _db = 'db'
 
+
+
 __all__ = ['root_path', 'pd_to_csv', 'pd_read_csv', 'parquet_encode', 'parquet_write', 'csv_encode', 'csv_write']
 
 def root_path(doc, root, fmt = None):
@@ -101,6 +103,7 @@ def parquet_encode(value, path, compression = 'GZIP'):
     if is_pd(value):
         return dict(_obj = _pd_read_parquet, path = pd_to_parquet(value, path + _parquet))
     elif is_arr(value):
+        mkdir(path + _npy)
         np.save(path + _npy, value)
         return dict(_obj = _np_load, file = path + _npy)        
     elif is_dict(value):
