@@ -11,7 +11,7 @@ _function = 'function'
 
 class wrapper(dictattr):
     """
-    A base class for all decorators. It is similar to functools.wraps but better.
+    A base class for all decorators. It is similar to functools.wraps but better. See below why wrapt cannot be used...
     You basically need to define the wrapped method and everything else is handled for you.
     - You can then use it either directly to decorate functions
     - Or use it to create parameterized decorators
@@ -70,9 +70,42 @@ class wrapper(dictattr):
     >>> assert x == y        
     >>> assert x(1, 'no can add') is None        
 
-    """
-    
+    wrapper vs wrapt
+    -----------------
+    wrapt (wrapt.readthedocs.io) is an awesome wrapping tool. If you have static library functions, none is better.
+    The problem we face is that wrapt is too good in pretending the wrapped up object is the same as original function:
         
+    >>> import wrapt    
+    >>> def add_value(value):
+    >>>     @wrapt.decorator
+    >>>     def wrapper(wrapped, instance, args, kwargs):
+    >>>         return wrapped(*args, **kwargs) + value
+    >>>     return wrapper
+
+    >>> def f(x,y):
+    >>>     return x*y
+
+    >>> add_three = add_value(value = 3)(f)
+    >>> add_four = add_value(value = 4)(f)
+    >>> assert add_four(3,4) == 16 and add_three(3,4) == 15
+
+    >>> ## but here is the problem:
+    >>> assert encode(add_three) == encode(add_four) == encode(f)
+    
+    So if we ever encode the function and send it across json/Mongo, the wrapping is lost and the user when she receives it cannot use it
+
+    >>> class add_value(wrapper):
+    >>>     def wrapped(self, *args, **kwargs):
+    >>>         return self.function(*args, **kwargs) + self.value
+
+    >>> add_three = add_value(value = 3)(f)
+    >>> add_four = add_value(value = 4)(f)
+    >>> encode(add_three)
+    >>> {'value': 3, 'function': '{"py/function": "__main__.f"}', '_obj': '{"py/type": "__main__.add_value"}'}
+    >>> encode(add_three)
+    >>> {'value': 4, 'function': '{"py/function": "__main__.f"}', '_obj': '{"py/type": "__main__.add_value"}'}
+ 
+    """    
     def __init__(self, function = None, *args, **kwargs):
         function = copy(function)
         if type(function) == type(self):

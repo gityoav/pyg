@@ -91,12 +91,12 @@ def _cell_go(value, go):
         return value.go(go)
     else:
         if isinstance(value, dict):
-            return type(value)(**{k: cell_go(v, go) for k, v in value.items()})
+            return type(value)(**{k: _cell_go(v, go) for k, v in value.items()})
         else:
             return value
 
 
-def cell_go(value, go = 1):
+def cell_go(value, go = 0):
     """
     cell_go makes a cell run (using cell.go(go)) and returns the calculated cell.
     If value is not a cell, value is returned.    
@@ -128,6 +128,24 @@ def cell_go(value, go = 1):
     """
     return _cell_go(value, go = go)
 
+
+@loop(list, tuple)
+def _cell_load(value, mode):
+    if isinstance(value, cell):
+        return value.load(mode)
+    else:
+        if isinstance(value, dict):
+            return type(value)(**{k: _cell_load(v, mode) for k, v in value.items()})
+        else:
+            return value
+
+def cell_load(value, mode = 0):
+    """
+    loads a cell
+    """
+    return _cell_load(value, mode)
+        
+
 class cell_func(wrapper):
     """
     cell_func is a wrapped and wraps a function to act on cells rather than just on values
@@ -149,11 +167,15 @@ class cell_func(wrapper):
 
     
     """
-    def __init__(self, function = None, relabels = None, unitemized = None, uncalled = None, **other_relabels):
+    def __init__(self, function = None, relabels = None, 
+                 unitemized = None, 
+                 uncalled = None, 
+                 unloaded = None, **other_relabels):
         relabels = relabels or {}
         relabels.update(other_relabels)
         super(cell_func, self).__init__(function = function, 
                                         relabels = relabels, 
+                                        unloaded = as_list(unloaded),
                                         unitemized = as_list(unitemized),
                                         uncalled = as_list(uncalled))
 
@@ -168,6 +190,7 @@ class cell_func(wrapper):
         
         """
         go = kwargs.pop('go', 0)
+        mode = kwargs.pop('mode', 0)
         function_ = cell_item(cell_go(self.function, go))        
         callargs = getcallargs(function_, *args, **kwargs)
         spec = getargspec(function_)
@@ -175,17 +198,20 @@ class cell_func(wrapper):
         
         c = dict(callargs)
         varargs = c.pop(spec.varargs) if spec.varargs else []
-        called_varargs = cell_go(varargs, go)
+        loaded_args = cell_load(varargs, mode)
+        called_varargs = cell_go(loaded_args , go)
         itemized_varargs = cell_item(called_varargs, _data)
 
         varkw = c.pop(spec.varkw) if spec.varkw else {}
-        called_varkw = {k : v if k in self.uncalled else cell_go(v, go) for k, v in varkw.items()}
+        loaded_varkw = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in varkw.items()}
+        called_varkw = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_varkw.items()}
         itemized_varkw = {k : v if k in self.unitemized else cell_item(v, self.relabels.get(k,k)) for k, v in called_varkw.items()}
 
         defs = spec.defaults if spec.defaults else []
         params = dict(zip(arg_names[-len(defs):], defs))
         params.update(c)
-        called_params = {k : v if k in self.uncalled else cell_go(v, go) for k, v in params.items()}
+        loaded_params = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in params.items()}
+        called_params = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_params.items()}
         itemized_params = {k : v if k in self.unitemized else cell_item(v, self.relabels.get(k,k)) for k, v in called_params.items()}
         
         args_ = [itemized_params[arg] for arg in arg_names if arg in params] + list(itemized_varargs)
@@ -266,7 +292,7 @@ class cell(dictattr):
     def save(self):
         return self
     
-    def load(self):
+    def load(self, mode = 0):
         return self
             
     def __call__(self, go = 0, **kwargs):

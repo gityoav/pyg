@@ -1,6 +1,6 @@
 import pandas as pd; import numpy as np
 from functools import partial
-from pyg import db_cell, mongo_table, eq, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, db_ref
+from pyg import db_cell, cell, dt, mongo_table, eq, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, db_ref
 from operator import add
 from functools import partial
 from pyg import *
@@ -108,7 +108,7 @@ def test_db_cell_address():
     assert c().data == 3
     
 def test_db_load():
-    db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key')    
+    db = partial(mongo_table, db = 'temp', table = 'test_db_load', pk = 'key')    
     d = db()    
     d.raw.drop()
     a = db_cell(lambda a, b: a+b, a = 1, b = 2, key = 'a', db = db)
@@ -146,3 +146,14 @@ def test_db_load():
     assert db_cell(5).load() == db_cell(5)
     assert db_load(db_cell(5), 0) == db_cell(5)
 
+
+def test_db_cell_cache_on_cell_func():
+    db = partial(mongo_table, db = 'test', table = 'test', pk = 'key')    
+    db().raw.drop()
+    a = db_cell(dt, key = 'a', db = db)    
+    b = cell(lambda x: x, x=a)
+    c = cell(lambda x: x, x=a)
+    b = b()
+    c = c()
+    assert c.data == b.data
+    b = db_cell(lambda x: x, data = a)
