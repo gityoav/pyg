@@ -6,8 +6,8 @@ from pyg.base._logger import logger
 from pyg.base._dates import dt
 from pyg.base._reducer import reducer
 from pyg.base._decorators import wrapper
+
 from pyg.base._inspect import argspec_add, getargspec, argspec_defaults
-import datetime
 from operator import mul
 
 _data = 'data'

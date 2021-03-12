@@ -74,4 +74,3 @@ class reducing(wrapper):
         else:
             return func(lhs, rhs)
 
-

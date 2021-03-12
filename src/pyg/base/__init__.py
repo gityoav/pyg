@@ -13,7 +13,7 @@ from pyg.base._file import path_name, path_dirname, path_join, mkdir, read_csv
 from pyg.base._getitem import getitem, callitem, callattr
 from pyg.base._inspect import getargspec, getargs, getcallargs, call_with_callargs, argspec_defaults, argspec_required, argspec_update, argspec_add, kwargs2args
 from pyg.base._logger import logger, get_logger
-from pyg.base._loop import loop, len0, pd2np, shape, loops, loop_all
+from pyg.base._loop import loop, loops, len0, pd2np, shape, loop_all
 from pyg.base._named_dict import named_dict
 from pyg.base._parquet import pd_to_parquet, pd_read_parquet
 from pyg.base._perdictable import join, perdictable

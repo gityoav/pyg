@@ -1,14 +1,42 @@
 import pandas as pd; import numpy as np
 from pyg.base._inspect import getargs
+from pyg.base._types import is_ts, is_str, is_df, is_pd, is_series, is_array, is_tuple, is_dict
 from pyg.base._decorators import wrapper
-from pyg.base._types import is_ts, is_df, is_pd, is_series, is_array, is_tuple, is_dict
 from pyg.base._as_list import as_tuple
 
 __all__ = ['loop', 'loops', 'len0', 'pd2np', 'shape', 'loop_all']
 
 
+def _zero():
+    return 0
+
 def len0(value):
-    return len(value) if hasattr(value, '__len__') else 0
+    """
+    returns the len of an object or 0 if no len(value) exists
+    
+    :Example:
+    ---------
+    >>> assert len0(5) == 0
+    >>> assert len0('a string is dimensionless') == 0
+    >>> assert len0([]) == 0
+    >>> assert len0([1,2]) == 2
+
+    Parameters
+    ----------
+    value : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
+    try:
+        return 0 if is_str(value) else getattr(value, '__len__', _zero)()
+    except Exception:
+        return 0
+
 
 def shape(value):
     return getattr(value, 'shape', ())
@@ -91,22 +119,6 @@ def axis0_to_array(res, arg):
     if len(rtn.shape)>1:
         rtn = rtn.T
     return rtn
-
-# add_index_and_columns = _np2pd
-
-# def axis1_to_dataframe(res, arg):
-#     if min([is_tuple(r) for r in res], default = False) and len(set([len(r) for r in res])) == 1:
-#         return tuple([axis1_to_dataframe(r, arg) for r in list(zip(*res))])
-#     elif min([is_dict(r) for r in res], default = False) and len(set([len(r) for r in res])) == 1:
-#         keys = res[0].keys()
-#         return {key : axis1_to_dataframe([r[key] for r in res], arg) for key in keys}
-#     rtn = pd.DataFrame(res, index = arg.index)
-#     if rtn.shape[1] == arg.shape[1]:
-#         rtn.columns = arg.columns
-#     elif rtn.shape[1] == 1:
-#         rtn = rtn[0]
-#     return rtn
-
 
 class loops(wrapper):
 
@@ -220,9 +232,9 @@ def loop(*types):
 
 def _T(arg):
     if isinstance(arg, tuple):
-        return tuple([_T(a) for a in arg])
+        return type(arg)([_T(a) for a in arg])
     elif isinstance(arg, list):
-        return [_T(a) for a in arg]
+        return type(arg)([_T(a) for a in arg])
     elif isinstance(arg, dict):
         return type(arg)({k :_T(a) for k,a in arg.items()})
     else:
@@ -278,5 +290,4 @@ class pd2np(wrapper):
 
 
 loop_all = loops(types = (pd.Series, pd.DataFrame, np.ndarray, list, tuple, dict))
-
 
