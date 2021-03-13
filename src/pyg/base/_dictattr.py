@@ -1,7 +1,6 @@
 from pyg.base._as_list import as_list, is_rng
 from pyg.base._types import is_str
 from pyg.base._ulist import ulist
-from pyg.base._logger import logger
 
 __all__ = ['dictattr', 'relabel']
 

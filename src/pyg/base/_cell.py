@@ -13,7 +13,7 @@ _data = 'data'
 _output = 'output'
 _function = 'function'
 
-__all__ = ['cell', 'cell_item', 'cell_go', 'cell_func', 'cell_output']
+__all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_output']
 
 def cell_output(c): 
     """
@@ -66,7 +66,7 @@ def cell_item(value, key = None):
     :Parameters:
     ------------------
     value : cell or object or list of cells/objects
-        DESCRIPTION.
+        cell
     key : str, optional
         The key within cell we are interested in. Note that key is treated as GUIDANCE only. 
         Our strong preference is to return valid output from cell_output(cell)
@@ -141,7 +141,19 @@ def _cell_load(value, mode):
 
 def cell_load(value, mode = 0):
     """
-    loads a cell
+    loads a cell from a database or memory and return its updated values
+
+    :Parameters:
+    ----------------
+    value : cell
+        The cell (or anything else).
+    mode: 1/0/-1
+        Used by cell.load(mode) -1 = no loading, 0 = load if available, 1 = throw an exception in unable to load
+
+    :Returns:
+    -------
+    A loaded cell
+    
     """
     return _cell_load(value, mode)
         
@@ -309,6 +321,9 @@ class cell(dictattr):
     @property
     def _output(self):
         return cell_output(self)
+
+    def _bare(self):
+        return self if self.function is None else self - self._output
     
     def _go(self, go = 0):
         if not callable(self.function):

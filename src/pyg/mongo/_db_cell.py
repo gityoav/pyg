@@ -82,8 +82,8 @@ def db_ref(value):
         db_cell (or list/dict of) to be made into reference
 
     """
-    if isinstance(value, db_cell):
-        return value._reference()
+    if isinstance(value, cell):
+        return value._bare()
     elif isinstance(value, (tuple, list)):
         return type(value)([db_ref(v) for v in value])
     elif isinstance(value, dict):
@@ -180,8 +180,12 @@ class db_cell(cell):
         address = db.address  + (pk, tuple([self.get(k) for k in pk])) 
         return address
 
-    def _reference(self):
-        return self[['db'] + self.db().pk]
+    def _bare(self):
+        if self.get(_db) is None:
+            return super(db_cell, self)._bare()
+        else:
+            return self[[_db] + self.db().pk]
+
     
     def __call__(self, go = 0, mode = 0, **kwargs):
         return (self + kwargs).load(mode).go(go)
@@ -226,7 +230,7 @@ class db_cell(cell):
         """
         if mode == -1:
             return self
-        if 'db' not in self or self.db is None:
+        if _db not in self or self.db is None:
             return self
         db = self.db()
         missing = ulist(db.pk) - self.keys()

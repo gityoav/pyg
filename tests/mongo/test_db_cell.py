@@ -157,3 +157,26 @@ def test_db_cell_cache_on_cell_func():
     c = c()
     assert c.data == b.data
     b = db_cell(lambda x: x, data = a)
+    
+
+def test_db_cell_bare():
+    db = partial(mongo_table, db = 'test', table = 'test', pk = 'key')
+    db().raw.drop()
+    c = db_cell()
+    assert db_ref(c) == c
+    c = db_cell(lambda x: x+1, x = 1)
+    assert c().data == 2
+    assert c()._bare() == c
+    c = db_cell(data = 1)    
+    d = db_cell(lambda x: x+1, x = c, db = db, key = 'key')
+    d = d()
+    def f(x):
+        return x+1
+    assert db().inc(key = 'key')[0].x == c
+    c = db_cell(lambda x: x + 1, x = 3)()
+    assert db_ref(c) == c- 'data'
+    c = cell(f, x = 3)
+    d = db_cell(f, x = c, db = db, key = 'key2')
+    d = d()
+    assert (db().inc(key = 'key2')[0] - 'data').go(1).data == 5
+    
