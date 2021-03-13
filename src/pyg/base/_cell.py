@@ -13,7 +13,7 @@ _data = 'data'
 _output = 'output'
 _function = 'function'
 
-__all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_output']
+__all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_output', 'cell_clear']
 
 def cell_output(c): 
     """
@@ -57,6 +57,41 @@ def _cell_item(value, key = None):
                 return value[_data]
             else:            
                 return Dict(value)[output]
+
+def cell_clear(value):
+    """
+    cell_clear clears a cell of its output so that it contains only the essentil stuff to do its calculations.
+    This will be used when we save the cell or we want to recalculate it.
+    
+    :Example:
+    ---------
+    >>> from pyg import *    
+    >>> a = cell(add_, a = 1, b = 2)
+    >>> b = cell(add_, a = 2, b = 3)
+    >>> c = cell(add_, a = a, b = b)()
+    >>> assert c.data == 8    
+    >>> assert c.a.data == 3
+
+    >>> bare = cell_clear(c)
+    >>> assert 'data' not in bare and 'data' not in bare.a
+    >>> assert bare() == c
+
+    
+    :Parameters:
+    ------------
+    value: obj
+        cell (or list/dict of) to be cleared of output
+
+    """
+    if isinstance(value, cell):
+        return value._clear()
+    elif isinstance(value, (tuple, list)):
+        return type(value)([cell_clear(v) for v in value])
+    elif isinstance(value, dict):
+        return type(value)(**{k : cell_clear(v) for k, v in value.items()})
+    else:
+        return value
+
 
 def cell_item(value, key = None):
     """
@@ -322,8 +357,9 @@ class cell(dictattr):
     def _output(self):
         return cell_output(self)
 
-    def _bare(self):
-        return self if self.function is None else self - self._output
+    def _clear(self):
+        res = self if self.function is None else self - self._output
+        return type(self)(**cell_clear(dict(res)))
     
     def _go(self, go = 0):
         if not callable(self.function):

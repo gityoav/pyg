@@ -1,11 +1,11 @@
-from pyg.base import cell, is_strs, as_tuple, ulist, logger, tree_update
+from pyg.base import cell, is_strs, as_tuple, ulist, logger, tree_update, cell_clear
 from pyg.mongo._q import _deleted, _id
 _updated = 'updated'
 _db = 'db'
 
 _GRAPH = {}
 
-__all__ = ['db_ref', 'db_load', 'db_save', 'db_cell']
+__all__ = ['db_load', 'db_save', 'db_cell']
 
 
 def db_save(value):
@@ -57,40 +57,6 @@ def db_load(value, mode = 0):
         return type(value)(**{k : db_load(v,mode) for k, v in value.items()})
     else:
         return value
-
-def db_ref(value):
-    """
-    db_ref strips a db_cell so that it contains only the reference needed to its location in the database.
-    When we save OTHER cells, referencing this cell, we apply db_ref and only save the bare data needed to reload cell
-    
-    :Example:
-    ---------
-    >>> from pyg import *
-    >>> db = partial(mongo_table, table = 'test', db = 'test', pk = 'key')
-    >>> c = db_cell(add_, a = 1, b = 2, key = 'key', db = db)()
-    >>> assert c.data == 3    
-
-    >>> bare = db_ref(c)
-    >>> assert 'a' not in bare and 'b' not in bare and 'data' not in bare
-
-    >>> reloaded = db_load(bare)
-    >>> assert reloaded.a == 1 and reloaded.data == 3
-    
-    :Parameters:
-    ------------
-    value: obj
-        db_cell (or list/dict of) to be made into reference
-
-    """
-    if isinstance(value, cell):
-        return value._bare()
-    elif isinstance(value, (tuple, list)):
-        return type(value)([db_ref(v) for v in value])
-    elif isinstance(value, dict):
-        return type(value)(**{k : db_ref(v) for k, v in value.items()})
-    else:
-        return value
-
 
 class db_cell(cell):
     """
@@ -180,9 +146,9 @@ class db_cell(cell):
         address = db.address  + (pk, tuple([self.get(k) for k in pk])) 
         return address
 
-    def _bare(self):
-        if self.get(_db) is None:
-            return super(db_cell, self)._bare()
+    def _clear(self):
+        if not callable(self.get(_db)): 
+            return super(db_cell, self)._clear()
         else:
             return self[[_db] + self.db().pk]
 
@@ -200,7 +166,7 @@ class db_cell(cell):
             logger.warning('WARN: document not saved as some keys are missing %s'%missing)
             return self            
         doc = (self - _deleted)
-        ref = type(doc)(**db_ref(dict(doc)))
+        ref = type(doc)(**cell_clear(dict(doc)))
         try:
             doc[_id] = db.update_one(ref)[_id]
         except Exception:
@@ -230,7 +196,7 @@ class db_cell(cell):
         """
         if mode == -1:
             return self
-        if _db not in self or self.db is None:
+        if not callable(self.get(_db)):
             return self
         db = self.db()
         missing = ulist(db.pk) - self.keys()
