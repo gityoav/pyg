@@ -1,4 +1,4 @@
-from pyg import cell, cell_func, dictattr
+from pyg import cell, cell_func, dictattr, dt
 from pyg.base._cell import cell_output, cell_item
 import pytest
 
@@ -125,3 +125,19 @@ def test_cell_item_tree():
     assert c.__repr__() == "cell\n{'a': 1, 'function': None, 'output': ['a']}"
 
 
+def test_cell_go_levels():
+    f = lambda t1 = None, t2 = None: max([dt(t1), dt(t2)]) # constructing a function that goes deep recursively
+    a = cell(f)()
+    b = cell(f, t1 = a)()
+    c = cell(f, t1 = b)()
+    d = cell(f, t1 = c)()
+    e = cell(f, t1 = d)()
+    assert not e.run() and not e.t1.run() and not e.t1.t1.run()
+    e0 = e()
+    assert e0.data == e.data
+    e1 = e.go(1) 
+    assert e1.data > e.data and e1.t1.data == e.t1.data
+    e2 = e.go(2) 
+    assert e2.data > e.data and e2.t1.data > e.t1.data and e2.t1.t1.data == e.t1.t1.data
+    g = e.go(-1)
+    assert g.data > e.data and g.t1.data > e.t1.data and g.t1.t1.data > e.t1.t1.data and g.t1.t1.t1.data > e.t1.t1.t1.data

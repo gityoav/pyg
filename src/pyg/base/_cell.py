@@ -330,6 +330,22 @@ class cell(dictattr):
 
 
     def run(self):
+        """
+        checks if the cell needs calculation. This depends on the nature of the cell. 
+        By default (for cell and db_cell), if the cell is already calculated so that cell._output exists, then returns False. otherwise True
+
+        Returns
+        -------
+        bool
+            run cell?
+            
+        :Example:
+        ---------
+        >>> c = cell(lambda x: x+1, x = 1)
+        >>> assert c.run()
+        >>> c = c()
+        >>> assert c.data == 2 and not c.run()
+        """
         output = cell_output(self)
         for o in output:
             if self.get(o) is None:
@@ -337,9 +353,26 @@ class cell(dictattr):
         return False
     
     def save(self):
+        """
+        Saves the cell for persistency. Not implemented for simple cell. see db_cell
+
+        :Returns:
+        -------
+        cell
+            self, saved.
+
+        """
         return self
     
     def load(self, mode = 0):
+        """
+        Loads the cell from the database based on primary keys of cell perhaps. Not implemented for simple cell. see db_cell
+
+        :Returns:
+        -------
+        cell
+            self, updated with values from database.
+        """
         return self
             
     def __call__(self, go = 0, **kwargs):
@@ -351,10 +384,41 @@ class cell(dictattr):
     
     @property
     def _args(self):
+        """
+        returns the keyword arguments within the cell that will be presented to the cell.function
+        """
         return getargs(self.function)
     
     @property
     def _output(self):
+        """
+        returns the keys within the cell where the output from the function will be stored.
+        This can be set in two ways:
+        
+        :Example:
+        ----------
+        >>> from pyg import *
+        >>> f = lambda a, b : a + b
+        >>> c = cell(f, a = 2, b = 3)
+        >>> assert c._output == ['data']
+        
+        >>> c = cell(f, a = 2, b = 3, output = 'x')
+        >>> assert c._output == ['x'] and c().x == 5            
+
+        :Example: output for functions that return dicts
+        ---------
+
+        >>> f = lambda a, b : dict(sum = a + b, prod = a*b) ## function returns a dict!
+        >>> c = cell(f, a = 2, b = 3)()
+        >>> assert c.data['sum'] == 5 and c.data['prod'] == 6 ## by default, the dict goes to 'data' again
+
+        >>> c = cell(f, a = 2, b = 3, output = ['sum', 'prod'])() ## please, send the output to these keys...
+        >>> assert c['sum'] == 5 and c['prod'] == 6 ## by default, the dict goes to 'data' again
+
+        >>> f.output = ['sum', 'prod'] ## we make the function declare that it returns a dict with these keys        
+        >>> c = cell(f, a = 2, b = 3)() ## now the cell does not need to set this
+        >>> assert c.sum == 5 and c.prod == 6 
+        """
         return cell_output(self)
 
     def _clear(self):
@@ -364,12 +428,12 @@ class cell(dictattr):
     def _go(self, go = 0):
         if not callable(self.function):
             return self
-        elif go>0 or self.run():
+        elif go!=0 or self.run():
             if hasattr(self, '_address'):
                 logger.info(str(self._address))
             kwargs = {arg: self[arg] for arg in self._args if arg in self}
             function = self.function if isinstance(self.function, cell_func) else cell_func(self.function)
-            res, called_args, called_kwargs = function(go = go-1 if go>1 else 0, **kwargs)
+            res, called_args, called_kwargs = function(go = go-1 if go>0 else go, **kwargs)
             c = self + called_kwargs
             output = cell_output(c)
             if output is None:
@@ -384,6 +448,56 @@ class cell(dictattr):
             return self
 
     def go(self, go = 0, **kwargs):
+        """
+        calculates the cell (if needed). By default, will then run cell.save() to save the cell. 
+        If you don't want to save the output (perhaps you want to check it first), use cell._go()
+
+        :Parameters:
+        ------------
+        go : int, optional
+            a parameter that forces calculation. The default is 0.
+            go = 0: calculate cell only if cell.run() is True
+            go = 1: calculate THIS cell regardless. calculate the parents only if their cell.run() is True
+            go = 2: calculate THIS cell and PARENTS cell regardless, calculate grandparents if cell.run() is True etc.
+            go = -1: calculate the entire tree again.            
+            
+        **kwargs : parameters
+            You can actually allocate the variables to the function at runtime
+
+        :Returns:
+        -------
+        cell
+            the cell, calculated
+        
+        :Example: different values of go
+        ---------------------
+        >>> from pyg import *
+        >>> f = lambda x=None,y=None: max([dt(x), dt(y)])
+        >>> a = cell(f)()
+        >>> b = cell(f, x = a)()
+        >>> c = cell(f, x = b)()
+        >>> d = cell(f, x = c)()
+
+        >>> e = d.go()
+        >>> e0 = d.go(0)
+        >>> e1 = d.go(1)
+        >>> e2 = d.go(2)
+        >>> e_1 = d.go(-1)
+
+        >>> assert not d.run() and e.data == d.data 
+        >>> assert e0.data == d.data 
+        >>> assert e1.data > d.data and e1.x.data == d.x.data
+        >>> assert e2.data > d.data and e2.x.data > d.x.data and e2.x.x.data == d.x.x.data
+        >>> assert e_1.data > d.data and e_1.x.data > d.x.data and e_1.x.x.data > d.x.x.data
+
+        :Example: adding parameters on the run
+        --------------------------------------
+        >>> c = cell(lambda a, b: a+b)
+        >>> d = c(a = 1, b =2)
+        >>> assert d.data == 3
+
+
+        """
         res = self._go(go, **kwargs)
         return res.save()
     

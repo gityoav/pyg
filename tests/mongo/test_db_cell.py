@@ -1,6 +1,6 @@
 import pandas as pd; import numpy as np
 from functools import partial
-from pyg import db_cell, cell, dt, mongo_table, eq, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, cell_clear, add_
+from pyg import db_cell, cell, dt, mongo_table, eq, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, cell_clear, v2na, add_, sub_, div_, ewma, ewmrms
 from operator import add
 from functools import partial
 from pyg import *
@@ -196,4 +196,25 @@ def test_db_cell_bare():
     d = d()
     assert (db().inc(key = 'key2')[0] - 'data').go(1).data == 5
     db().raw.drop()
+
     
+def fake_ts(ticker):
+    return pd.Series(np.random.normal(0,1,1000), drange(-999))
+
+def test_db_cell_network():
+    db = partial(mongo_table, db = 'test', table = 'test', pk = ['key'])
+    db().raw.drop()
+    appl = db_cell(fake_ts, ticker = 'appl', key = 'appl_rtn', db = db)()
+    a = cell(ewma, a = appl, n = 30)
+    b = cell(ewma, a = appl, n = 50)
+    c = db_cell(sub_, a = a, b = b, key = 'calculate difference of ewma', db = 'key')
+    d = db_cell(ewmrms, a = c, n = 100, key = 'root mean square of difference', db = 'key')
+    e = db_cell(v2na, a = d, key = 'change zero to nan before dividing by rms', db = 'key')
+    f = db_cell(div_, a = c, b = e, key = 'appl_crossover', db = db)()
+    assert db().key == ['appl_crossover', 'appl_rtn']
+    loaded = db()[dict(key = 'appl_crossover')]
+    assert not 'data' in loaded.b
+    assert not 'data' in loaded.a
+    assert eq(loaded.data, f.data)
+    assert eq((loaded -'data').go().data, f.data)
+    db().raw.drop()
