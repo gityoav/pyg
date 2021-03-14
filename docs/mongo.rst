@@ -91,8 +91,3 @@ db_save
 db_load
 -------
 .. autofunction:: pyg.mongo._db_cell.db_load
-
-db_ref
--------
-.. autofunction:: pyg.mongo._db_cell.db_ref
-

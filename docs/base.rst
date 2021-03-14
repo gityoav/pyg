@@ -101,6 +101,11 @@ cell_func
 ----------
 .. autofunction:: pyg.base._cell.cell_func
 
+cell_clear
+----------
+.. autofunction:: pyg.base._cell.cell_clear
+
+
 encode and decode/save and load
 ===============================
 
