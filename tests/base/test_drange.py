@@ -234,7 +234,7 @@ def test_calendar_modified_adj():
     cal = calendar('US')
     assert cal.adjust(dt(2021,2,21)) == dt(2021,2,22) ## following
     assert cal.adjust(dt(2021,2,28)) == dt(2021,2,26) ## except at month end, go to previous
-    assert cal.drange(0,20,1) == drange(0,20,1)
-    assert cal.drange(0,20,'1b') == drange(0,20,'1b')
+    assert cal.drange(2000,20,1) == drange(2000,20,1)
+    assert cal.drange(2000,20,'1b') == drange(2000,20,'1b')
 
     
