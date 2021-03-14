@@ -112,21 +112,19 @@ def _ts_count(a, vec = None):
     return vec[0], vec
     
 
-def ts_count(a, axis = 0, data = None, instate = None):
+def ts_count(a, axis = 0, data = None, state = None):
     """
-    ts_count(a) is equivalent to a.count()
+    ts_count(a) is equivalent to a.count() (though slightly slower)
     
     - supports numpy arrays 
-    - handles nan
+    - skips nan
     - supports state management
-    - pandas is actually faster on count
     
+    :Example: pandas matching
+    -----------------------------------
     >>> # create sample data:
     >>> from pyg import *; import pandas as pd; import numpy as np
     >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999)); a[a>0] = np.nan
-
-    :Example: pandas matching
-    -----------------------------------
     >>> assert ts_count(a) == a.count()
 
     :Example: numpy 
@@ -136,11 +134,11 @@ def ts_count(a, axis = 0, data = None, instate = None):
     :Example: state management
     -------------------------------------------
     >>> old = ts_count_(a.iloc[:2000])
-    >>> new = ts_count(a.iloc[2000:], vec = old.vec)
+    >>> new = ts_count(a.iloc[2000:], state = old.state)
     >>> assert new == ts_count(a)
 
     """
-    state = instate or {}
+    state = state or {}
     return first_(_ts_count(a, axis = axis, **state))
 
 def ts_count_(a, axis = 0, data = None, instate = None):
@@ -392,6 +390,11 @@ def ts_skew(a, bias = False, min_sample = 0.25, axis = 0, data = None, state = N
         
     axis : int, optional
         0/1/-1. The default is 0.
+        
+    min_sample: float, optional
+        This refers to the denominator when we calculate the skew. Over time, the deonimator converges to 1 but initially, it is small. 
+        Also, if there is a gap in the data, older datapoints weight may have decayed while there are not enough "new point". 
+        min_sample ensures that in both cases, if denominator<0.25 )(default value) we return nan.
 
     data: None
         unused at the moment. Allow code such as func(live, **func_(history)) to work

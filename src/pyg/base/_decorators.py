@@ -56,7 +56,7 @@ class wrapper(dictattr):
     >>> assert f(1,2) == 6
         
 
-    No recursion
+    :Example: No recursion
     ------------------
     The decorator is designed to have a single instance of a specific wrapper
     
@@ -70,8 +70,8 @@ class wrapper(dictattr):
     >>> assert x == y        
     >>> assert x(1, 'no can add') is None        
 
-    wrapper vs wrapt
-    -----------------
+    :Example: wrapper vs wrapt
+    --------------------------
     wrapt (wrapt.readthedocs.io) is an awesome wrapping tool. If you have static library functions, none is better.
     The problem we face is that wrapt is too good in pretending the wrapped up object is the same as original function:
         
