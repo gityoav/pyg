@@ -231,7 +231,7 @@ def test_calendar_is_trading():
 
 
 def test_calendar_modified_adj():
-    cal = calendar('US')
+    cal = calendar('test_calendar_modified_adj')
     assert cal.adjust(dt(2021,2,21)) == dt(2021,2,22) ## following
     assert cal.adjust(dt(2021,2,28)) == dt(2021,2,26) ## except at month end, go to previous
     assert cal.drange(2000,20,1) == drange(2000,20,1)

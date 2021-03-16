@@ -1,7 +1,7 @@
 import numpy as np
 from pyg.timeseries._math import stdev_calculation, skew_calculation
 from pyg.timeseries._decorators import compiled, first_, _data_state
-from pyg.base import pd2np, Dict, loop_all
+from pyg.base import pd2np, loop_all
 
 __all__ = ['cumsum', 'cumprod', ]
 __all__ += ['expanding_mean', 'expanding_sum', 'expanding_rms', 'expanding_std', 'expanding_skew']

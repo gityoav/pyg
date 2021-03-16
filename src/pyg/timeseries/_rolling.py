@@ -1,7 +1,7 @@
 import numpy as np
 from pyg.timeseries._math import stdev_calculation, skew_calculation
 from pyg.timeseries._decorators import compiled, first_, _data_state
-from pyg.base import pd2np, Dict, is_num, zipper, loop_all, loop
+from pyg.base import pd2np, Dict, is_num, loop_all, loop
 
 __all__ = ['ffill', 'bfill', 'fnna', 'na2v', 'v2na', 'diff', 'shift', 'ratio', 'rolling_mean', 'rolling_sum', 'rolling_rms', 'rolling_std', 'rolling_skew', 
            'diff_', 'shift_', 'ratio_', 'rolling_mean_', 'rolling_sum_', 'rolling_rms_', 'rolling_std_', 'rolling_skew_']

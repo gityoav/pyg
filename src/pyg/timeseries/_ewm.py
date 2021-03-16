@@ -1,10 +1,11 @@
 import numpy as np; import pandas as pd
-from pyg.timeseries._math import stdev_calculation_ewm, skew_calculation, cor_calculation_ewm, variance_calculation_ewm
+from pyg.timeseries._math import stdev_calculation_ewm, skew_calculation, cor_calculation_ewm, LR_calculation_ewm, variance_calculation_ewm
 from pyg.timeseries._decorators import compiled, first_, _data_state
 from pyg.timeseries._index import presync
-from pyg.base import pd2np, clock, loop_all, loop
+from pyg.base import pd2np, clock, loop_all, loop, is_pd
 
-__all__ = ['ewma', 'ewmstd', 'ewmvar', 'ewmskew', 'ewmrms',  'ewmcor', 'ewma_', 'ewmstd_', 'ewmskew_', 'ewmrms_', 'ewmcor_', 'ewmvar_',]
+__all__ = ['ewma', 'ewmstd', 'ewmvar', 'ewmskew', 'ewmrms',  'ewmcor', 'ewmLR', 'ewmGLM',
+           'ewma_', 'ewmstd_', 'ewmskew_', 'ewmrms_', 'ewmcor_', 'ewmvar_','ewmLR_', 'ewmGLM_',]
 
 ############################################
 ##
@@ -201,7 +202,134 @@ def _ewmcor(a, b, ba, n, time, t = np.nan, t0 = 0, a1 = 0, a2 = 0, b1 = 0, b2 = 
     return res, t, t0, a1, a2, b1, b2, ab, w2
 
 
+@pd2np
+@compiled
+def _ewmLR(a, b, ba, n, time, t = np.nan, t0 = 0, a1 = 0, a2 = 0, b1 = 0, b2 = 0, ab = 0, w2 = 0, min_sample = 0.25, bias = False):
+    """
+    We have a and b for which we want to fit:
+        b_i = c + m a_i 
+    
+    minimize LSE under weights w_i. We let:
+        w = \sum_i w_i
+    
+    LSE(c,m) = \sum w_i (c + m a_i - b_i)^2
+    dLSE/dc  = 0  <==> \sum w_i  (c + m a_i - b_i) = 0    [1]
+    dLSE/dm  = 0 <==> \sum w_i  a_i (c + m a_i - b_i) = 0 [2]
 
+    c     + mE(a)    = E(b)     [1]
+    cE(a) + mE(a^2)  = E(ab)    [2]
+    
+    cE(a) + mE(a)^2  = E(a)E(n) [1] * E(a) 
+    m(E(a^2) - E(a)^2) = E(ab) - E(a)E(b)
+    
+    m = covar(a,b)/var(a)
+    c = E(b) - mE(a)
+    
+
+    :Example:
+    -----------
+    a = np.random.normal(0,1,10000)
+    b = 0.5 * a + np.random.normal(0,1,10000)
+    _ewmLRt(a,b,100)
+    """
+    w = _w(n)
+    m = np.empty_like(a)
+    c = np.empty_like(a)
+    i0 = 0
+    for i in range(a.shape[0]):
+        if np.isnan(a[i]) or np.isnan(b[i]):
+            c[i] = m[i] = np.nan
+        else:
+            if time[i] == t:
+                a1 = a1 + (1-w) * (a[i] - a[i0])
+                a2 = a2 + (1-w) * (a[i]**2 - a[i0]**2)
+                b1 = b1 + (1-w) * (b[i] - b[i0])
+                b2 = b2 + (1-w) * (b[i]**2 - b[i0]**2)
+                ab = ab + (1-w) * (ba[i] - ba[i0])
+            else:
+                p = w if np.isnan(time[i]) else w**(time[i]-t)
+                t0 = t0 * p + (1-w)
+                w2 = w2 * p**2 + (1-w)**2
+                a1 = a1 * p + (1-w) * a[i]
+                a2 = a2 * p + (1-w) * a[i]**2
+                b1 = b1 * p + (1-w) * b[i]
+                b2 = b2 * p + (1-w) * b[i]**2
+                ab = ab * p + (1-w) * ba[i]
+                t = time[i]
+            i0 = i
+            c[i0], m[i0] = LR_calculation_ewm(t0 = t0, a1 = a1, a2 = a2, b1 = b1, b2 = b2, ab = ab, w2 = w2, min_sample = min_sample, bias = bias)
+    return c, m, t, t0, a1, a2, b1, b2, ab, w2
+
+
+@compiled
+def xTx(x):
+    return x.reshape((x.shape[0],1)) * x.reshape((1,x.shape[0]))
+
+
+# @pd2np
+# def _ewmGLM(a, b, n, time, t, t0, a2, ab, min_weight = 0.25):
+#     print(a.shape,b.shape,a2.shape,ab.shape)
+
+@pd2np
+@compiled
+def _ewmGLM(a, b, n, time, t, t0, a2, ab, min_weight = 0.25):
+    """
+    We assume b is single column while a is multicolumn. We are fitting
+    
+    b[i] =\sum_j m_j a_j[i]
+    
+    LSE(m) = \sum_i w_i (b[i] - \sum_j m_j * a_j[i])^2
+    dLSE/dm_k = 0  
+    <==>  \sum_i w_i (b[i] - \sum_j m_j * a_j[i]) a_k[i] = 0
+    <==>  E(b*a_k) = m_k E(a_k^2) + sum_{j<>k} m_k E(a_j a_k) 
+    
+    E is expectation under w. 
+    
+    We set
+    a2[i,j] = E(a_i a_j)
+    ab[j] = E(a_j * b)
+    
+    And invert
+    A*m = B
+    
+    Example
+    --------
+    >>> from pyg import *
+    >>> a = np.random.normal(0,1,(5000,10))
+    >>> m = np.random.normal(1,1,10)
+    >>> a[a>2] = np.nan
+    >>> b = np.sum(a * m,axis=1) + np.random.normal(0,1,5000)
+    >>> n = 30
+    >>> t = np.nan; t0 = 0; time = np.full_like(b, np.nan); a2 = np.zeros((a.shape[1],a.shape[1])); ab = np.zeros(a.shape[1])
+    >>> res = _ewmGLM(a, b, n, time, t, t0, a2, ab)
+    >>> pd.DataFrame(res[0], drange(-4999)).plot()
+    >>> pd.Series(m)
+    """
+    w = _w(n)
+    res = np.empty_like(a)
+    nana = np.sum(np.isnan(a), axis = 1)
+    i0 = 0
+    for i in range(a.shape[0]):
+        if nana[i]>0 or np.isnan(b[i]):
+            res[i] = np.nan
+        else:
+            if time[i] == t:
+                ab = ab + (1-w) * (b[i]*a[i] - b[i0]*a[i0])
+                a2 = a2 + (1-w) * xTx(a[i]) - (1-w) * xTx(a[i0])
+            else:
+                p = w if np.isnan(time[i]) else w**(time[i]-t)
+                t0 = t0 * p + (1-w)
+                ab = ab * p + (1-w) * b[i]*a[i]
+                a2 = a2 * p + (1-w) * xTx(a[i])
+                t = time[i]                
+            i0 = i
+            if t0>min_weight:
+                a2i = np.linalg.inv(a2/t0)
+                res[i] = a2i.dot(ab/t0)
+            else:
+                res[i] = np.nan
+    return res, t, t0, a2, ab
+    
 
 @pd2np
 @compiled
@@ -258,6 +386,45 @@ def _ewmcort(a, b, n, time = None, t = None, t0 = 0, a1 = 0, a2 = 0, b1 = 0, b2 
     time = clock(ba, time, t)
     t = 0 if t is None or np.isnan(t) else t
     return _ewmcor(a = a, b = b, ba = ba, n = n, time = time, t = t, t0 = t0, a1 = a1, a2 = a2, b1 = b1, b2 = b2, ab = ab, w2 = w2, min_sample=min_sample, bias = bias)
+
+@loop_all
+@presync
+def _ewmLRt(a, b, n, time = None, t = None, t0 = 0, a1 = 0, a2 = 0, b1 = 0, b2 = 0, ab = 0, w2 = 0, min_sample = 0.25, bias = False):
+    ba = b * a
+    time = clock(ba, time, t)
+    t = 0 if t is None or np.isnan(t) else t
+    return _ewmLR(a = a, b = b, ba = ba, n = n, time = time, t = t, t0 = t0, a1 = a1, a2 = a2, b1 = b1, b2 = b2, ab = ab, w2 = w2, min_sample=min_sample, bias = bias)
+
+@loop(list, dict)
+@presync(columns = False)
+def _ewmGLMt(a, b, n, time = None, t = None, t0 = 0, a2 = None, ab = None, min_sample = 0.25):
+    """
+    >>> from pyg import *
+    >>> a = np.random.normal(0,1,(5000,10))
+    >>> m = np.random.normal(1,1,10)
+    >>> b = np.sum(a * m,axis=1) + np.random.normal(0,1,5000)
+    >>> a[a>2] = np.nan
+    >>> n = 30
+    >>> time = None; t = None; t0 = 0; a2 = None; ab = None; min_sample = 0.25
+    >>> res = _ewmGLMt(a, b, n)
+
+    Something very interesting, Once reindex has been applied to a, 
+    a.values isn't contiguous and np.reshape fails within numba.
+    therefore, we need to aggressively list the data and convert back to an array:
+    a_ = np.array(list(a.values)) if is_pd(a) else a 
+    
+    """
+    time = clock(b, time, t)
+    t = 0 if t is None or np.isnan(t) else t
+    a2 = np.zeros((a.shape[1], a.shape[1])) if a2 is None else a2
+    ab = np.zeros(a.shape[1]) if ab is None else ab
+    a_ = np.array(list(a.values)) if is_pd(a) else a 
+    b_ = b.values if is_pd(b) else b
+    res = _ewmGLM(a = a_, b = b_, n = n, time = time, t = t, t0 = t0, a2 = a2, ab = ab, min_weight = min_sample)
+    if is_pd(a):
+        res = (pd.DataFrame(res[0], a.index, columns = a.columns),) + res[1:]
+    return res
+
 
 @loop_all
 def _ewmskewt(a, n, time = None, t = None, bias = False, t0 = 0, t1 = 0, t2 = 0, t3 = 0, min_sample = 0.25):
@@ -669,11 +836,14 @@ def ewmcor_(a, b, n, time = None, min_sample = 0.25, bias = True, axis = 0, data
     state = instate or {}    
     return _data_state(['data', 't', 't0', 'a1', 'a2', 'b1', 'b2', 'ab', 'w2'], _ewmcort(a = a, b = b, n = n, time = time, min_sample=min_sample, bias = bias, axis=axis, **state))
 
+ewmcor_.output = ['data', 'state']
+
+
 def ewmcor(a, b, n, time = None, min_sample = 0.25, bias = True, axis = 0, data = None, state = None):
     """
     calculates pair-wise correlation between a and b.
     
-    Parameters
+    :Parameters:
     ----------
     a : array/timeseries
     b : array/timeseries
@@ -727,6 +897,172 @@ def ewmcor(a, b, n, time = None, min_sample = 0.25, bias = True, axis = 0, data 
     """
     state = state or {}    
     return first_(_ewmcort(a, b = b, n = n, time = time, min_sample=min_sample, bias = bias, axis=axis, **state))
+
+
+def ewmGLM_(a, b, n, time = None, min_sample = 0.25, bias = True, data = None, instate = None):
+    """
+    Equivalent to ewmGLM but returns a state parameter for instantiation of later calculations.
+    See ewmGLM documentation for more details
+    """
+    state = instate or {}    
+    return _data_state(['data', 't', 't0', 'a2', 'ab'], _ewmGLMt(a = a, b = b, n = n, time = time, min_sample=min_sample, **state))
+
+ewmGLM_.output = ['data', 'state']
+
+
+def ewmGLM(a, b, n, time = None, min_sample = 0.25, bias = True, data = None, state = None):
+    """
+    Calculates a General Linear Model fitting b to a.
+    
+    :Parameters:
+    ----------
+    a : a 2-d array/pd.DataFrame of values fitting b
+    b : a 1-d array/pd.Series
+    n : int/fraction
+        The number or days (or a ratio) to scale the history
+    time : Calendar, 'b/d/y/m' or a timeseries of time (use clock(a) to see output)
+        If time parameter is provided, we allow multiple observations per unit of time. i.e., converging to the last observation in time unit. 
+            - if we have intraday data, and set time = 'd', then 
+            - the ewm calculation on last observations per day is what is retained. 
+            - the ewm calculation on each intraday observation is same as an ewm(past EOD + current intraday observation)
+    min_sample : floar, optional
+        minimum weight of observations before we return the fitting. The default is 0.25. This ensures that we don't get silly numbers due to small population.
+    data : place holder, ignore, optional
+        ignore. The default is None.
+    state : dict, optional
+        Output from a previous run of ewmGLM_. The default is None.
+        
+    :Theory:
+    --------
+    See https://en.wikipedia.org/wiki/Generalized_linear_model for full details.
+    Briefly, we assume b is single column while a is multicolumn. 
+    We minimize least square error (LSE) fitting:
+    
+    >>> b[i] =\sum_j m_j a_j[i]    
+    >>> LSE(m) = \sum_i w_i (b[i] - \sum_j m_j * a_j[i])^2
+
+    >>> dLSE/dm_k = 0  
+    >>> <==>  \sum_i w_i (b[i] - \sum_j m_j * a_j[i]) a_k[i] = 0
+    >>> <==>  E(b*a_k) = m_k E(a_k^2) + sum_{j<>k} m_k E(a_j a_k) 
+    
+    E is expectation under weights w. And we can rewrite it as:
+    
+    >>> a2 x m = ab ## matrix multiplication
+    >>> a2[i,j] = E(a_i * a_j)
+    >>> ab[j] = E(a_j * b)
+    >>> m = a2.inverse x ab ## matrix multiplication    
+
+
+    :Example: simple fit
+    --------------------
+    >>> from pyg import *
+    >>> a = pd.DataFrame(np.random.normal(0,1,(10000,10)), drange(-9999))
+    >>> true_m = np.random.normal(1,1,10)
+    >>> noise = np.random.normal(0,1,10000)
+    >>> b = (a * true_m).sum(axis = 1) + noise
+    
+    >>> fitted_m = ewmGLM(a.values, b.values, 50)    
+    >>> fitted_m = ewmGLM(a, b, 50)    
+        
+    """
+    state = state or {}    
+    return first_(_ewmGLMt(a = a, b = b, n = n, time = time, min_sample=min_sample, **state))
+
+
+
+def ewmLR_(a, b, n, time = None, min_sample = 0.25, bias = True, axis = 0, c = None, m = None, instate = None):
+    """
+    Equivalent to ewmcor but returns a state parameter for instantiation of later calculations.
+    See ewmcor documentation for more details
+    """
+    state = instate or {}    
+    return _data_state(['c', 'm', 't', 't0', 'a1', 'a2', 'b1', 'b2', 'ab', 'w2'], 
+                       _ewmLRt(a = a, b = b, n = n, time = time, min_sample=min_sample, bias = bias, axis=axis, **state),
+                       output = ['c', 'm'])
+
+ewmLR_.output = ['c', 'm', 'state']
+
+def ewmLR(a, b, n, time = None, min_sample = 0.25, bias = True, axis = 0, c = None, m = None, state = None):
+    """
+    calculates pair-wise linear regression between a and b.
+    We have a and b for which we want to fit:
+    
+    >>> b_i = c + m a_i 
+    >>> LSE(c,m) = \sum w_i (c + m a_i - b_i)^2
+    >>> dLSE/dc  = 0  <==> \sum w_i  (c + m a_i - b_i) = 0    [1]
+    >>> dLSE/dm  = 0 <==> \sum w_i  a_i (c + m a_i - b_i) = 0 [2]
+
+    >>> c     + mE(a)    = E(b)     [1]
+    >>> cE(a) + mE(a^2)  = E(ab)    [2]
+
+    >>> cE(a) + mE(a)^2  = E(a)E(n) [1] * E(a) 
+    >>> m(E(a^2) - E(a)^2) = E(ab) - E(a)E(b)
+    >>> m = covar(a,b)/var(a)
+    >>> c = E(b) - mE(a)
+
+    
+    Parameters
+    ----------
+    a : array/timeseries
+    b : array/timeseries
+    n : int/fraction
+        The number or days (or a ratio) to scale the history
+    time : Calendar, 'b/d/y/m' or a timeseries of time (use clock(a) to see output)
+        If time parameter is provided, we allow multiple observations per unit of time. i.e., converging to the last observation in time unit. 
+            - if we have intraday data, and set time = 'd', then 
+            - the ewm calculation on last observations per day is what is retained. 
+            - the ewm calculation on each intraday observation is same as an ewm(past EOD + current intraday observation)
+    min_sample : floar, optional
+        minimum weight of observations before we return a reading. The default is 0.25. This ensures that we don't get silly numbers due to small population.
+    bias : book, optional
+        vol estimation for a and b should really by unbiased. Nevertheless, we track pandas and set bias = True as a default.
+    axis : int, optional
+        axis of calculation. The default is 0.
+    c,m : place holder, ignore, optional
+        ignore. The default is None.
+    state : dict, optional
+        Output from a previous run of ewmcor_. The default is None.
+    
+    :Example: numpy arrays support
+    ------------------------------
+    >>> assert eq(ewmLR(a.values, b.values, 10), ewmLR(a, b, 10).values)
+
+    :Example: nan handling
+    ----------------------
+    >>> a[a.values<-0.1] = np.nan
+    >>> ts = ewmcor(a, b, 10, time = 'i'); df = a.ewm(10).corr(b) # note: pandas assumes, 'time' pass per index entry, even if value is nan
+    >>> assert abs(ts-df).max()<1e-10
+
+    :Example: state management
+    --------------------------
+    >>> from pyg import *
+    >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999))
+    >>> b = pd.Series(np.random.normal(0,1,10000), drange(-9999))
+    >>> old_a = a.iloc[:5000]; old_b = b.iloc[:5000]
+    >>> new_a = a.iloc[5000:]; new_b = b.iloc[5000:]
+    >>> old_ts = ewmLR_(old_a, old_b, 10)
+    >>> new_ts = ewmLR(new_a, new_b, 10, **old_ts) # instantiation with previous ewma
+    >>> ts = ewmLR(a,b,10)
+    >>> assert eq(new_ts.c, ts.c.iloc[5000:])
+    >>> assert eq(new_ts.m, ts.m.iloc[5000:])
+    
+    
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> a0 = pd.Series(np.random.normal(0,1,10000), drange(-9999))
+    >>> a1 = pd.Series(np.random.normal(0,1,10000), drange(-9999))
+    >>> b = (a0 - a1) + pd.Series(np.random.normal(0,1,10000), drange(-9999))
+    >>> a = pd.concat([a0,a1], axis=1)
+    >>> LR = ewmLR(a,b,50)
+    >>> assert abs(LR.m.mean()[0]-1)<0.5
+    >>> assert abs(LR.m.mean()[1]+1)<0.5
+    """
+    state = state or {}
+    return _data_state(['c', 'm'], _ewmLRt(a = a, b = b, n = n, time = time, min_sample=min_sample, bias = bias, axis=axis, **state),
+                       output = ['c', 'm'])
+
+ewmLR.output = ['c', 'm']
 
 def ewmskew_(a, n, time = None, bias = False, min_sample = 0.25, axis=0, data = None, instate = None):
     """

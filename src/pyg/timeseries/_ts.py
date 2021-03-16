@@ -442,13 +442,13 @@ def _nona(df, value = np.nan):
         mask = mask.min(axis=1) == 1
     return df[~mask]
 
-def nona(df, value = np.nan):
+def nona(a, value = np.nan):
     """
     removes rows that are entirely nan (or a specific other value)
 
     :Parameters:
     ----------------
-    df : dataframe/ndarray
+    a : dataframe/ndarray
         
     value : float, optional
         value to be removed. The default is np.nan.
@@ -467,7 +467,7 @@ def nona(df, value = np.nan):
 
 
     """
-    return _nona(df)
+    return _nona(a)
 
 
 ts_min_.output = ['data', 'state']

@@ -1,5 +1,5 @@
 from pyg.timeseries._decorators import compiled
-from pyg.timeseries._ewm import ewma, ewma_, ewmstd, ewmvar, ewmstd_, ewmrms, ewmrms_, ewmskew, ewmskew_, ewmcor, ewmcor_, ewmvar_
+from pyg.timeseries._ewm import ewma, ewma_, ewmstd, ewmvar, ewmstd_, ewmrms, ewmrms_, ewmskew, ewmskew_, ewmcor, ewmcor_, ewmvar_, ewmLR, ewmLR_, ewmGLM, ewmGLM_
 from pyg.timeseries._min import rolling_min, rolling_min_, expanding_min, expanding_min_
 from pyg.timeseries._max import rolling_max, rolling_max_, expanding_max, expanding_max_
 from pyg.timeseries._median import rolling_median, rolling_median_, expanding_median

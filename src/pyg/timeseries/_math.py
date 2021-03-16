@@ -58,6 +58,22 @@ def cor_calculation_ewm(t0, a1, a2, b1, b2, w2, ab, min_sample, bias = False):
         return (Eab - Ea*Eb)/denom
     else:
         return np.nan
+
+@compiled
+def LR_calculation_ewm(t0, a1, a2, b1, b2, w2, ab, min_sample, bias = False):
+    if t0<=min_sample:
+        return np.nan, np.nan
+    Eab = ab/t0
+    Ea = a1/t0
+    Eb = b1/t0
+    VARa = variance_calculation_ewm(t0, a1, a2, w2, min_sample = min_sample, bias = bias)
+    if VARa > 0:
+        covar = Eab - Ea*Eb
+        m = covar/VARa
+        c = Eb - m * Ea
+        return c, m
+    else:
+        return np.nan, np.nan
     
 @compiled
 def skew_calculation(t0, t1, t2, t3, bias, min_sample):

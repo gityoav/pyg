@@ -12,9 +12,19 @@ def compiled(function):
 
 first_ = loop(dict, list)(first)
 
-def _data_state(keys, values):
-    assert keys[0] == 'data'
-    return Dict(data = values[0], state = Dict(zipper(keys[1:], values[1:])))
+
+def _data_state(keys, values, output = 'data'):
+    if isinstance(values, dict):
+        return type(values)({k: _data_state(keys, v, output) for k, v in values.items()})
+    elif isinstance(values, list):
+        return type(values)([_data_state(keys, v, output) for v in values])
+    output = as_list(output)
+    assert keys[:len(output)] == output
+    res = Dict(zip(output,values))
+    if len(keys) > len(output):
+        res['state'] = dict(zipper(keys[len(output):], values[len(output):]))
+    return res
+
 
 def _ignore(ignore, data, state):
     state = {} if state is None else state

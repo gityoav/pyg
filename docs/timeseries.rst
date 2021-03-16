@@ -204,6 +204,14 @@ ewmcor
 ------
 .. autofunction:: pyg.timeseries._ewm.ewmcor
 
+ewmLR
+------
+.. autofunction:: pyg.timeseries._ewm.ewmLR
+
+ewmGLM
+------
+.. autofunction:: pyg.timeseries._ewm.ewmGLM
+
 ewmskew
 --------
 .. autofunction:: pyg.timeseries._ewm.ewmskew
@@ -258,6 +266,8 @@ exponentially weighted moving functions
 .. autofunction:: pyg.timeseries._ewm.ewmstd_
 .. autofunction:: pyg.timeseries._ewm.ewmvar_
 .. autofunction:: pyg.timeseries._ewm.ewmcor_
+.. autofunction:: pyg.timeseries._ewm.ewmLR_
+.. autofunction:: pyg.timeseries._ewm.ewmGLM_
 .. autofunction:: pyg.timeseries._ewm.ewmskew_
 
 

@@ -549,24 +549,26 @@ class presync(wrapper):
         args_= df_reindex(args, index, method = self.method)
         kwargs_= df_reindex(kwargs, index, method = self.method)
         ### now we do the columns
-        cols = [tuple(ts.columns) for ts in tss if is_df(ts) and ts.shape[1]>1]
-        if len(set(cols))==1: # special case where all 2-d dataframes have same column headers
-            columns = cols[0]
-            n = len(columns)
-            res = {column: self.function(*df_column(args_,column = column, i = i, n = n), **df_column(kwargs_, column=column, i = i, n = n)) for i, column in enumerate(columns)}
+        if self.columns is False:
+            return self.function(*args_, **kwargs_)
         else:
-            columns = df_columns(listed, self.columns)
-            if is_int(columns):
-                res = {i: self.function(*df_column(args_, column = None, i = i), **df_column(kwargs_, column=None, i = i)) for i in range(columns)}
-            elif columns is None:
-                return self.function(*df_column(args_, column = None), **df_column(kwargs_, column = None))
+            cols = [tuple(ts.columns) for ts in tss if is_df(ts) and ts.shape[1]>1]
+            if len(set(cols))==1: # special case where all 2-d dataframes have same column headers
+                columns = cols[0]
+                n = len(columns)
+                res = {column: self.function(*df_column(args_,column = column, i = i, n = n), **df_column(kwargs_, column=column, i = i, n = n)) for i, column in enumerate(columns)}
             else:
-                columns = list(columns) if isinstance(columns, pd.Index) else as_list(columns)
-                columns = sorted(columns)
-                res = {column: self.function(*df_column(args_,column = column), **df_column(kwargs_, column=column)) for column in columns}
-                
-        converted = _convert(res, columns)
-        return converted 
+                columns = df_columns(listed, self.columns)
+                if is_int(columns):
+                    res = {i: self.function(*df_column(args_, column = None, i = i), **df_column(kwargs_, column=None, i = i)) for i in range(columns)}
+                elif columns is None:
+                    return self.function(*df_column(args_, column = None), **df_column(kwargs_, column = None))
+                else:
+                    columns = list(columns) if isinstance(columns, pd.Index) else as_list(columns)
+                    columns = sorted(columns)
+                    res = {column: self.function(*df_column(args_,column = column), **df_column(kwargs_, column=column)) for column in columns}                
+            converted = _convert(res, columns)
+            return converted 
 
 @presync
 def add_(a, b):
