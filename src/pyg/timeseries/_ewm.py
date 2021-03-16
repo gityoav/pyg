@@ -263,14 +263,14 @@ def _ewmLR(a, b, ba, n, time, t = np.nan, t0 = 0, a1 = 0, a2 = 0, b1 = 0, b2 = 0
 
 @compiled
 def xTx(x):
-    return x.reshape((x.shape[0],1)) * x.reshape((1,x.shape[0]))
+    res = np.empty((x.shape[0], x.shape[0]))
+    for i in range(x.shape[0]):
+        for j in range(i):
+            res[i][j] = res[j][i] = x[i] * x[j]
+        res[i][i] = x[i]**2
+    return res
 
 
-# @pd2np
-# def _ewmGLM(a, b, n, time, t, t0, a2, ab, min_weight = 0.25):
-#     print(a.shape,b.shape,a2.shape,ab.shape)
-
-@pd2np
 @compiled
 def _ewmGLM(a, b, n, time, t, t0, a2, ab, min_weight = 0.25):
     """
@@ -406,23 +406,18 @@ def _ewmGLMt(a, b, n, time = None, t = None, t0 = 0, a2 = None, ab = None, min_s
     >>> a[a>2] = np.nan
     >>> n = 30
     >>> time = None; t = None; t0 = 0; a2 = None; ab = None; min_sample = 0.25
-    >>> res = _ewmGLMt(a, b, n)
-
-    Something very interesting, Once reindex has been applied to a, 
-    a.values isn't contiguous and np.reshape fails within numba.
-    therefore, we need to aggressively list the data and convert back to an array:
-    a_ = np.array(list(a.values)) if is_pd(a) else a 
+    >>> res = ewmGLM_(a, b, n)
     
     """
     time = clock(b, time, t)
     t = 0 if t is None or np.isnan(t) else t
     a2 = np.zeros((a.shape[1], a.shape[1])) if a2 is None else a2
     ab = np.zeros(a.shape[1]) if ab is None else ab
-    a_ = np.array(list(a.values)) if is_pd(a) else a 
+    a_ = a.values if is_pd(a) else a  #np.array(list(a.values)) 
     b_ = b.values if is_pd(b) else b
     res = _ewmGLM(a = a_, b = b_, n = n, time = time, t = t, t0 = t0, a2 = a2, ab = ab, min_weight = min_sample)
     if is_pd(a):
-        res = (pd.DataFrame(res[0], a.index, columns = a.columns),) + res[1:]
+         res = (pd.DataFrame(res[0], a.index, columns = a.columns),) + res[1:]
     return res
 
 
@@ -961,7 +956,6 @@ def ewmGLM(a, b, n, time = None, min_sample = 0.25, bias = True, data = None, st
     >>> noise = np.random.normal(0,1,10000)
     >>> b = (a * true_m).sum(axis = 1) + noise
     
-    >>> fitted_m = ewmGLM(a.values, b.values, 50)    
     >>> fitted_m = ewmGLM(a, b, 50)    
         
     """
