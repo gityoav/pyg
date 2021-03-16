@@ -10,6 +10,7 @@ from pyg.base._sort import sort, cmp
 from pyg.base._file import read_csv
 from functools import reduce
 import pandas as pd
+import re
 
 __all__ = ['dict_concat', 'dictable', 'is_dictable']
 
@@ -386,6 +387,14 @@ class dictable(Dict):
         >>> assert d.inc(x = 1) == dictable(x = 1, y = 0)            
         >>> assert d.inc(x = [1,2]) == dictable(x = [1,2], y = [0,4]) 
 
+        :Example: filtering on regex
+        -------
+        >>> import re
+        >>> d = dictable(text = ['once', 'upon', 'a', 'time', 'in', 'the', 'west', 1, 2, 3])
+        >>> assert d.inc(text = re.compile('o')) == dictable(text = ['once', 'upon'])
+        >>> assert d.exc(text = re.compile('e')) == dictable(text = ['upon', 'a', 'in', 1, 2, 3])
+        
+        
         :Example: filtering on callables
         --------------
         >>> from pyg import *; import numpy as np
@@ -408,6 +417,8 @@ class dictable(Dict):
                 res = res[[r is None for r in res[key]]]
             elif is_nan(value):
                 res = res[[is_nan(r) for r in res[key]]]
+            elif isinstance(value, re.Pattern):
+                res = res[[is_str(r) and value.search(r) is not None for r in res[key]]]                
             else:
                 value = as_list(value)
                 res = res[[r in value for r in res[key]]]
@@ -462,6 +473,8 @@ class dictable(Dict):
                 res = res[[r is not None for r in res[key]]]
             elif is_nan(value):
                 res = res[[not is_nan(r) for r in res[key]]]
+            elif isinstance(value, re.Pattern):
+                res = res[[(not is_str(r)) or value.search(r) is None for r in res[key]]]                
             else:
                 value = as_list(value)
                 res = res[[r not in value for r in res[key]]]

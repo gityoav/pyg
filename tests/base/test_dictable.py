@@ -5,6 +5,7 @@ import pytest
 import pymongo
 import tempfile
 import os
+import re
 
 
 
@@ -348,6 +349,8 @@ def test_dictable_xor():
     assert a/b == dictable(a = [0,1,2,8,9])
     assert b.xor(a, mode = 'r') == a/b
 
-
-    
+def test_regex_inc_exc():
+    d = dictable(a = [1,2,'hello','world', 'hello kitty'])     
+    assert d.inc(a = re.compile('he')) == dictable(a = ['hello', 'hello kitty'])
+    assert d.exc(a = re.compile('he')) == dictable(a = [1, 2, 'world'])
 
