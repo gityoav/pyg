@@ -8,7 +8,6 @@ from pyg.base._decorators import wrapper
 from pyg.base._logger import logger
 from copy import copy
 
-
 _data = 'data'
 _output = 'output'
 _function = 'function'
@@ -378,6 +377,7 @@ class cell(dictattr):
     def __call__(self, go = 0, **kwargs):
         return (self + kwargs).load().go(go)
 
+
     @property
     def fullargspec(self):
         return getargspec(self.function)
@@ -388,6 +388,7 @@ class cell(dictattr):
         returns the keyword arguments within the cell that will be presented to the cell.function
         """
         return getargs(self.function)
+    
     
     @property
     def _output(self):
