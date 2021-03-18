@@ -56,15 +56,16 @@ def _ts_min(a, m = None):
         m = np.inf
     m = _min(a, m)
     if np.isinf(m):
-        m = np.nan
-    return m
+        return np.nan, m
+    else:
+        return m, m
 
 def ts_min(a, axis = 0, data = None, state = None):
     """
     ts_min(a) is equivalent to pandas a.min()
     """
     state = state or {}
-    return _ts_min(a, axis = axis, **state)
+    return first_(_ts_min(a, axis = axis, **state))
     
 def ts_min_(a, axis = 0, data = None, instate = None):
     """
@@ -72,7 +73,7 @@ def ts_min_(a, axis = 0, data = None, instate = None):
     """
     state = instate or {}
     res = _ts_min(a, axis = axis, **state)
-    return _data_state(['data', 'm'], [res,res])
+    return _data_state(['data', 'm'], res)
 
 ts_min_.output = ['data', 'state']
 
@@ -82,15 +83,16 @@ def _ts_max(a, m = None):
         m = -np.inf
     m = _max(a, m)
     if np.isinf(m):
-        m = np.nan
-    return m
+        return np.nan, m
+    else:
+        return m, m
     
 def ts_max(a, axis = 0, data = None, state = None):
     """
     ts_max(a) is equivalent to pandas a.min()
     """
     state = state or {}
-    return _ts_max(a, axis = axis, **state)
+    return first_(_ts_max(a, axis = axis, **state))
 
 def ts_max_(a, axis = 0, data = None, instate = None):
     """
@@ -98,7 +100,7 @@ def ts_max_(a, axis = 0, data = None, instate = None):
     """
     state = instate or {}
     res = _ts_max(a, axis = axis, **state)
-    return _data_state(['data', 'm'], [res,res])
+    return _data_state(['data', 'm'], res)
 
 ts_max_.output = ['data', 'state']
 

@@ -126,7 +126,10 @@ def test_cell_item_tree():
 
 
 def test_cell_go_levels():
-    f = lambda t1 = None, t2 = None: max([dt(t1), dt(t2)]) # constructing a function that goes deep recursively
+    def f(t1 = None, t2 = None):
+        _ = [i for i in range(100000)]
+        return max([dt(t1), dt(t2)])
+    # f = lambda t1 = None, t2 = None: max([dt(t1), dt(t2)]) # constructing a function that goes deep recursively
     a = cell(f)()
     b = cell(f, t1 = a)()
     c = cell(f, t1 = b)()

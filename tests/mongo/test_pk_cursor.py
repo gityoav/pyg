@@ -1,6 +1,7 @@
-from pyg import mongo_table, dictable, Dict, mongo_pk_reader, mongo_pk_cursor, mongo_cursor, mongo_reader
+from pyg import mongo_table, dictable, Dict, mongo_pk_reader, mongo_pk_cursor, mongo_cursor, mongo_reader, periodic_cell, drange, pd_read_parquet, passthru, eq, dt
 from functools import partial
 import pytest
+import pandas as pd
 
 def test_mongo_pk_cursor():
     db = partial(mongo_table, db = 'test', table = 'test', pk = ['a', 'b'])
@@ -114,4 +115,16 @@ def test_pk_cursor_raw():
     assert isinstance(t.raw, mongo_reader) and t.raw.spec == {}
     r = t.raw.find(a = 1)
     assert isinstance(r.raw, mongo_reader) and r.raw.spec == {}
+
+def test_pk_cursor_dates_to_parquet():
+    db = partial(mongo_table, table = 'test', db =  'test', pk = 'a', writer = 'c:/temp/%a/%updated.parquet')    
+    db().raw.drop()
+    c = periodic_cell(lambda a: pd.Series([1,2,3], drange(-2)), a = 'a', db = db)()
+    assert eq(pd_read_parquet(db().read(0, passthru)['data']['path']), c.data)
+    db().raw.drop()
+    c = periodic_cell(lambda a: pd.Series([1,2,3], drange(-2)), a = 'a', db = db)()
+    c.updated = dt(2000)
+    c = c.save()
+    assert db().read(0, passthru)['data']['path'] == 'c:/temp/a/20000101/data.parquet'
+    db().raw.drop()
 

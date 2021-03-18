@@ -151,5 +151,15 @@ def test_expanding_states():
         assert eq(res2 - _data, res_ - _data)
         assert eq(res2.data, res.iloc[500:])
 
-    
-    
+
+def test_min_max_no_data():
+    a1 = np.array([np.nan, np.nan])
+    a2 = np.array([np.nan, 1., 2.])
+    m1 = ts_max_(a1)
+    assert np.isnan(m1.data)
+    m2 = ts_max(a2, **m1)    
+    assert m2 == 2
+    m1 = ts_min_(a1)        
+    assert np.isnan(m1.data)
+    m2 = ts_min(a2, **m1)    
+    assert m2 == 1

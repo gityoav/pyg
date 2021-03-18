@@ -44,7 +44,7 @@ def root_path(doc, root, fmt = None):
     for row in items:
         text = '%' + '.'.join(row[:-1])
         if text in root:
-            value = dt2str(row[-1], fmt) if is_date(row[-1]) else str(row[-1])
+            value = dt2str(row[-1], fmt).replace(':','') if is_date(row[-1]) else str(row[-1])
             res = res.replace(text, '%s'% value)
     if '%' in res:
         raise ValueError('The document did not contain enough keys to determine the path %s'%res)
