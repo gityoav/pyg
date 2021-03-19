@@ -1,10 +1,9 @@
 import pandas as pd; import numpy as np
 from functools import partial
-from pyg import db_cell, cell, dt, mongo_table, eq, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, cell_clear, v2na, add_, sub_, div_, ewma, ewmrms
+from pyg import db_cell, cell, dt, mongo_table, eq, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, cell_clear, v2na, add_, sub_, div_, ewma, ewmrms, GRAPH
 from operator import add
 from functools import partial
 from pyg import *
-from pyg.mongo._db_cell import _GRAPH
 import pytest
 
 def f(a,b):
@@ -43,7 +42,7 @@ def test_db_cell_save_root():
     assert eq(pd_read_parquet(path), res.data)    
     res = db_cell(db = db, key = 'b').load()
     assert eq(res, self)    
-    _GRAPH = {} # not from cache please
+    GRAPH = {} # not from cache please
     res = db_cell(db = db, key = 'b').load() - '_pk'
     assert eq(res, self)    
 
@@ -218,3 +217,66 @@ def test_db_cell_network():
     assert eq(loaded.data, f.data)
     assert eq((loaded -'data').go().data, f.data)
     db().raw.drop()
+    
+    
+def test_db_cell_point_in_time():
+    db = partial(mongo_table, db = 'test', table = 'test', pk = ['key'])
+    db().raw.drop()
+
+    ## pre 2000
+    x0 = db_cell(add_, a = 1, b = 2, key = 'x', db = db).go()
+    y0 = db_cell(add_, a = x0, b = 2, key = 'y', db = db).go()
+    z0 = db_cell(add_, a = x0, b = y0, key = 'z', db = db).go()
+
+    ## now delete
+    db().raw.inc(q._deleted.not_exists).set(_deleted = dt(2000))
+    assert len(db()) == 0
+
+    ## now try and grab...
+    with pytest.raises(ValueError):
+        get_cell('test', 'test', key = 'z')
+
+    assert get_cell('test', 'test', key = 'z', _deleted = dt(1999)).data == 8
+
+    with pytest.raises(ValueError):
+        get_cell('test', 'test', key = 'z', _deleted = dt(2001))
+
+    x1 = db_cell(add_, a = 10, b = 20, key = 'x', db = db)(mode = -1)
+    y1 = db_cell(add_, a = x1, b = 20, key = 'y', db = db)(mode = -1)
+    z1 = db_cell(add_, a = x1, b = y1, key = 'z', db = db)(mode = -1)
+    
+    db().raw.inc(q._deleted.not_exists).set(_deleted = dt(2002))
+
+    assert get_cell('test', 'test', key = 'z', _deleted = dt(1999)).data == 8
+    assert get_cell('test', 'test', key = 'z', _deleted = dt(2001)).data == 80
+
+    x2 = db_cell(add_, a = 100, b = 200, key = 'x', db = db)(mode = -1)
+    y2 = db_cell(add_, a = x2, b = 200, key = 'y', db = db)(mode = -1)
+    z2 = db_cell(add_, a = x2, b = y2, key = 'z', db = db)(mode = -1)
+        
+    assert get_cell('test', 'test', key = 'z', _deleted = dt(1999)).data == 8
+    assert get_cell('test', 'test', key = 'z', _deleted = dt(2001)).data == 80
+    assert get_cell('test', 'test', key = 'z').data == 800
+
+    
+    assert db_cell(db = db, key = 'z').load(mode = [dt(1999)]).data == 8
+    assert db_cell(db = db, key = 'z').load(mode = [dt(2001)]).data == 80
+    assert db_cell(db = db, key = 'z').load(mode = [0]).data == 800
+    assert db_cell(db = db, key = 'z').load(mode = []).data == 800
+
+    t0 = dt() ### This will be useful shortly...
+
+    full_recalc_using_1999_data = db_cell(db = db, key = 'z')(go=-1, mode = [dt(1999)])
+    assert full_recalc_using_1999_data.data == 8
+
+    full_recalc_using_2001_data = db_cell(db = db, key = 'z')(go=-1, mode = [dt(2001)])
+    assert full_recalc_using_2001_data.data == 80
+    
+    ## Be aware, now that we fully recalculated, the current value IS the same as the values in 2001    
+    full_recalc_using_live_data = db_cell(db = db, key = 'z')(go=-1, mode = [0])
+    assert full_recalc_using_live_data.data == 80
+    
+    full_recalc_using_live_data_before_we_messed_with_it = db_cell(db = db, key = 'z')(go=-1, mode = [t0])
+    assert full_recalc_using_live_data_before_we_messed_with_it.data == 800    
+    db().raw.drop()    
+    

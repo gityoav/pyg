@@ -475,7 +475,7 @@ def diff_(a, n=1, axis = 0, data = None, instate = None):
     if n == 0:
         return Dict(data = a - a, state = instate)
     state = instate or Dict(vec = None, i = 0) 
-    state.vec = _vec(state.vec, n)
+    state.vec = _vec(state['vec'], n)
     return _data_state(['data', 'vec', 'i'], _diff1(a, state.vec, axis = axis) if n == 1 else _diff(a, n, axis = axis, **state))
 
 diff_.output = ['data', 'state']

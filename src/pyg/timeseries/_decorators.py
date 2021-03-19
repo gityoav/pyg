@@ -22,7 +22,7 @@ def _data_state(keys, values, output = 'data'):
     assert keys[:len(output)] == output
     res = Dict(zip(output,values))
     if len(keys) > len(output):
-        res['state'] = dict(zipper(keys[len(output):], values[len(output):]))
+        res['state'] = Dict(zipper(keys[len(output):], values[len(output):]))
     return res
 
 

@@ -120,17 +120,17 @@ def cell_item(value, key = None):
     return _cell_item(value, key = key)
 
 @loop(list, tuple)
-def _cell_go(value, go):
+def _cell_go(value, go, mode = 0):
     if isinstance(value, cell):
-        return value.go(go)
+        return value.go(go = go, mode = mode)
     else:
         if isinstance(value, dict):
-            return type(value)(**{k: _cell_go(v, go) for k, v in value.items()})
+            return type(value)(**{k: _cell_go(v, go = go, mode = mode) for k, v in value.items()})
         else:
             return value
 
 
-def cell_go(value, go = 0):
+def cell_go(value, go = 0, mode = 0):
     """
     cell_go makes a cell run (using cell.go(go)) and returns the calculated cell.
     If value is not a cell, value is returned.    
@@ -160,7 +160,7 @@ def cell_go(value, go = 0):
     >>> assert cell_go(c) == c(data = 3)
 
     """
-    return _cell_go(value, go = go)
+    return _cell_go(value, go = go, mode = mode)
 
 
 @loop(list, tuple)
@@ -374,8 +374,8 @@ class cell(dictattr):
         """
         return self
             
-    def __call__(self, go = 0, **kwargs):
-        return (self + kwargs).load().go(go)
+    def __call__(self, go = 0, mode = 0, **kwargs):
+        return (self + kwargs).load(mode = mode).go(go = go, mode = mode)
 
 
     @property
@@ -426,7 +426,7 @@ class cell(dictattr):
         res = self if self.function is None else self - self._output
         return type(self)(**cell_clear(dict(res)))
     
-    def _go(self, go = 0):
+    def _go(self, go = 0, mode = 0):
         if not callable(self.function):
             return self
         elif go!=0 or self.run():
@@ -434,7 +434,7 @@ class cell(dictattr):
                 logger.info(str(self._address))
             kwargs = {arg: self[arg] for arg in self._args if arg in self}
             function = self.function if isinstance(self.function, cell_func) else cell_func(self.function)
-            res, called_args, called_kwargs = function(go = go-1 if go>0 else go, **kwargs)
+            res, called_args, called_kwargs = function(go = go-1 if go>0 else go, mode = mode, **kwargs)
             c = self + called_kwargs
             output = cell_output(c)
             if output is None:
@@ -448,7 +448,7 @@ class cell(dictattr):
         else:
             return self
 
-    def go(self, go = 0, **kwargs):
+    def go(self, go = 1, mode = 0, **kwargs):
         """
         calculates the cell (if needed). By default, will then run cell.save() to save the cell. 
         If you don't want to save the output (perhaps you want to check it first), use cell._go()
@@ -464,6 +464,8 @@ class cell(dictattr):
             
         **kwargs : parameters
             You can actually allocate the variables to the function at runtime
+
+        Note that by default, cell.go() will default to go = 1 and force a calculation on cell while cell() is lazy and will default to assuming go = 0
 
         :Returns:
         -------
@@ -499,7 +501,7 @@ class cell(dictattr):
 
 
         """
-        res = self._go(go, **kwargs)
+        res = self._go(go = go, mode = mode, **kwargs)
         return res.save()
     
     def copy(self):

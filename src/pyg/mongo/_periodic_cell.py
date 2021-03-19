@@ -31,16 +31,9 @@ class periodic_cell(db_cell):
         self[_updated] = updated
         self['_period'] = _period 
         super(periodic_cell, self).__init__(function, output = output, db = db, **kwargs)
-    
-    def _go(self, go = 0, time = None):
-        res = self
-        if go > 0 or self.run(time):
-            res = super(periodic_cell, self)._go(go)
-            res[_updated] = dt(time)
-        return res
-        
-    def run(self, time = None):
-        time = dt(time)
+            
+    def run(self):
+        time = dt()
         if self[_updated] is None or dt_bump(self[_updated], self[_period]) < time:
             return True
         return super(periodic_cell, self).run() 

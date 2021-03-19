@@ -1,17 +1,7 @@
 from pyg.base import cell_item
 from pyg.mongo._table import mongo_table
 from pyg.mongo._q import q
-
-# def _fetch(cursor, output):
-#     if len(cursor) == 0:
-#         raise ValueError('No documents found %s'%cursor)
-#     if output is True or output == 1:
-#         return cursor[0]
-#     elif is_str(output) or isinstance(output, list):
-#         return Dict(cursor[output][0])[output]
-#     else:
-#         raw = cursor.read(0, passthru)
-#         return raw
+from pyg.mongo._db_cell import _load_asof
 
 
 def get_cell(table, db, url = None, _deleted = None, **kwargs):
@@ -46,27 +36,8 @@ def get_cell(table, db, url = None, _deleted = None, **kwargs):
         
     """
     t = mongo_table(db = db, table = table, url = url)
-    t = t.inc(kwargs)
-    if len(t) == 0:
-        raise ValueError('no cells found matching %s'%kwargs)
-    live = t.inc(q._deleted.not_exists)
-    if _deleted is None:
-        if len(live) == 0:
-            raise ValueError('no undeleted cells found matching %s'%kwargs)        
-        elif len(live)>1:
-            raise ValueError('multiple cells found matching %s'%kwargs)
-        return live[0]        
-    else:
-        history = t.inc(q._deleted >_deleted) #cells alive at _deleted
-        if len(history) == 0:
-            if len(live) == 0:
-                raise ValueError('no undeleted cells found matching %s'%kwargs)        
-            elif len(live)>1:
-                raise ValueError('multiple cells found matching %s'%kwargs)
-            return live[0]
-        else:
-            return history.sort('_deleted')[0]
-        
+    return _load_asof(t, kwargs, _deleted)
+
 def get_data(table, db, url = None, _deleted = None, **kwargs):
     """
     retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using _deleted.

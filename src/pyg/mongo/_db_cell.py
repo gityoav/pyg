@@ -1,11 +1,11 @@
-from pyg.base import cell, is_strs, as_tuple, ulist, logger, tree_update, cell_clear
-from pyg.mongo._q import _deleted, _id
+from pyg.base import cell, is_strs, is_date, as_tuple, ulist, logger, tree_update, cell_clear
+from pyg.mongo._q import _deleted, _id, q
 _updated = 'updated'
 _db = 'db'
 
-_GRAPH = {}
+GRAPH = {}
 
-__all__ = ['db_load', 'db_save', 'db_cell']
+__all__ = ['db_load', 'db_save', 'db_cell', 'GRAPH']
 
 
 def db_save(value):
@@ -52,11 +52,33 @@ def db_load(value, mode = 0):
     if isinstance(value, db_cell):
         return value.load(mode)
     elif isinstance(value, (tuple, list)):
-        return type(value)([db_load(v, mode) for v in value])
+        return type(value)([db_load(v, mode = mode) for v in value])
     elif isinstance(value, dict):
-        return type(value)(**{k : db_load(v,mode) for k, v in value.items()})
+        return type(value)(**{k : db_load(v, mode = mode) for k, v in value.items()})
     else:
         return value
+    
+def _load_asof(table, kwargs, _deleted):
+    t = table.inc(kwargs)
+    if len(t) == 0:
+        raise ValueError('no cells found matching %s'%kwargs)
+    live = t.inc(q._deleted.not_exists)
+    if _deleted is None:
+        if len(live) == 0:
+            raise ValueError('no undeleted cells found matching %s'%kwargs)        
+        elif len(live)>1:
+            raise ValueError('multiple cells found matching %s'%kwargs)
+        return live[0]        
+    else:
+        history = t.inc(q._deleted >_deleted) #cells alive at _deleted
+        if len(history) == 0:
+            if len(live) == 0:
+                raise ValueError('no undeleted cells found matching %s'%kwargs)        
+            elif len(live)>1:
+                raise ValueError('multiple cells found matching %s'%kwargs)
+            return live[0]
+        else:
+            return history.sort('_deleted')[0]
 
 class db_cell(cell):
     """
@@ -152,10 +174,7 @@ class db_cell(cell):
         else:
             return self[[_db] + self.db().pk]
 
-    
-    def __call__(self, go = 0, mode = 0, **kwargs):
-        return (self + kwargs).load(mode).go(go)
-    
+
     def save(self):
         if is_strs(self.db) or self.db is None:
             return self
@@ -172,46 +191,82 @@ class db_cell(cell):
         except Exception:
             doc[_id] = db.update_one(ref-_id)[_id]
         new = doc
-        _GRAPH[address] = new
+        GRAPH[address] = new
         return new
-    
-    def load(self, mode = 0, keys = None):
+        
+    def load(self, mode = 0):
         """
-        loads a document from the database and updates various keys
+        loads a document from the database and updates various keys.
+        
+        :Persistency:
+        -------------
+        Since we want to avoid hitting the database, there is a singleton GRAPH, a dict, storing the cells by their address.
+        Every time we load/save from/to Mongo, we also update GRAPH.
+        
+        We use the GRAPH often so if you want to FORCE the cell to go to the database when loading, use this:
 
-        Parameters
+        >>> cell.load(-1) 
+        >>> cell.load(-1).load(0)  # clear GRAPH and load from db
+        >>> cell.load([0])     # same thing: clear GRAPH and then load if available
+
+        :Merge of cached cell and calling cell:
+        ----------------------------------------
+        Once we load from memory (either MongoDB or GRAPH), we tree_update the cached cell with the new values in the current cell.
+        This means that it is next to impossible to actually *delete* keys. If you want to delete keys in a cell/cells in the database, you need to:
+        
+        >>> del db.inc(filters)['key.subkey']
+
+        :Parameters:
         ----------
-        mode : int , optional
-            if -1, then does not load and skips this function
-            if 0, then will load if found. If not found, will return original document
+        mode : int , dataetime, optional
+            if -1, then does not load and clears the GRAPH
+            if 0, then will load from database if found. If not found, will return original document
             if 1, then will throw an exception if no document is found in the database
+            if mode is a date, will return the version alive at that date 
             The default is 0.
-        keys : str/list of str/True, optional
-            determines which additional keys (other than output) are loaded onto the existing cell from the saved one. output keys are always loaded.
- 
-        Returns
+            
+            IF you enclose any of these in a list, then GRAPH is cleared prior to running and the database is called.
+    
+        :Returns:
         -------
         document
 
         """
-        if mode == -1:
-            return self
+        if isinstance(mode, (list, tuple)):
+            if len(mode) == 0:
+                mode = [0]
+            if len(mode) == 1 or (len(mode)==2 and mode[0] == -1):
+                res = self.load(-1)
+                return res.load(mode[-1])
+            else:
+                raise ValueError('mode can only be of the form [], [mode] or [-1, mode]')
         if not callable(self.get(_db)):
             return self
         db = self.db()
-        missing = ulist(db.pk) - self.keys()
+        pk = ulist(db.pk)
+        missing = pk - self.keys()
         if len(missing):
             logger.warning('WARN: document not loaded as some keys are missing %s'%missing)
             return self            
         address = self._address
-        if address not in _GRAPH:
-            try:
-                _GRAPH[address] = db[self]    
-            except Exception:
-                if mode in (1, True):
-                    raise ValueError('unable to load %s'%list(address))                    
-        if address in _GRAPH:
-            saved = _GRAPH[address]
+        kwargs = {k : self[k] for k in pk}
+        if mode == -1:
+            if address in GRAPH:
+                del GRAPH[address]
+            return self
+        if address not in GRAPH:
+            if is_date(mode):
+                GRAPH[address] = _load_asof(db.raw, kwargs, _deleted = mode)
+            else:
+                try:
+                    GRAPH[address] = db[kwargs]
+                except Exception:
+                    if mode in (1, True):
+                        raise ValueError('no cells found matching %s'%kwargs)
+                    else:
+                        return self         
+        if address in GRAPH:
+            saved = GRAPH[address]
             res = tree_update(saved, dict(self), ignore = [None])
             if self.function is None:
                 res.function = saved.function
