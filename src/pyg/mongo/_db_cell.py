@@ -1,4 +1,4 @@
-from pyg.base import cell, is_strs, is_date, as_tuple, ulist, logger, tree_update, cell_clear
+from pyg.base import cell, is_strs, is_date, as_tuple, ulist, logger, tree_update, cell_clear, dt
 from pyg.mongo._q import _deleted, _id, q
 _updated = 'updated'
 _db = 'db'
@@ -272,3 +272,9 @@ class db_cell(cell):
                 res.function = saved.function
             return res
         return self
+    
+    def go(self, go = 1, mode = 0, **kwargs):
+        res = self._go(go = go, mode = mode, **kwargs)
+        res[_updated] = dt()
+        return res.save()
+

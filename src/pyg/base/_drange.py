@@ -4,13 +4,44 @@ from pyg.base._as_list import as_list
 from pyg.base._dict import Dict
 import datetime
 from dateutil.rrule import rrule, MONTHLY, WEEKLY, DAILY, YEARLY, MO, TU, WE, TH, FR, SA, SU
-import numpy as np
+from dateutil import tz
+from pytz import country_timezones
+from functools import lru_cache
+import functools
+import dateutil as du
 
+
+import numpy as np
+import re
 
 weekdays = {0: MO, 1: TU, 2: WE, 3: TH, 4: FR, 5: SA, 6: SU}
+TMIN = datetime.datetime(1901, 1, 1)
+TMAX = datetime.datetime(2300, 1, 1)
+HOUR = datetime.timedelta(hours = 1)
+minute = datetime.timedelta(minutes = 1)
+second = datetime.timedelta(seconds = 1)
+microsecond = datetime.timedelta(microseconds = 1)
+isoformat = re.compile('^[0-9]{4}-[0-9]{2}-[0-9]{2}T')
 
+    
 __all__ = ['date_range', 'drange', 'calendar', 'Calendar', 'clock', 'as_time']
 
+@lru_cache
+def tzones():
+    x = {iso :country_timezones[iso] for iso in country_timezones}
+    tzs = {iso: code[0] for iso, code in x.items() if len(code) == 1}
+    for iso, code in x.items():
+        tzs.update({c.split('/')[-1].replace('_', ' ').lower(): c for c in code})
+    tzs  = {key : tz.gettz(value) for key, value in tzs.items()}
+    t = datetime.datetime.now()
+    tzs.update({v.tzname(t): v for v in tzs.values() if v is not None})
+    tzs['WET'] = tzs['western european'] = tzs['MA'] # Malta
+    tzs['EET'] = tzs['eastern european'] = tzs['GR']
+    tzs['CET'] = tzs['cental european'] = tzs['AT'] # austria
+    tzs['EST'] = tzs['eastern standard'] = tzs['new york']
+    tzs['CST'] = tzs['central standard'] = tzs['chicago']
+    tzs['greenwich mean time'] = tzs['GMT']
+    return tzs
 
 def as_time(t = None):
     """
@@ -29,12 +60,12 @@ def as_time(t = None):
     >>> assert as_time(datetime.time(1, 30)) == datetime.time(1, 30)
     >>> assert as_time(datetime.datetime(2000, 1, 1, 1, 30)) == datetime.time(1, 30)
     
-    Parameters
+    :Parameters:
     ----------
     t : str/int/datetime.time/datetime.datetime
         time of day
 
-    Returns
+    :Returns:
     -------
     datetime.time
 
@@ -306,6 +337,8 @@ class Calendar(Dict, _calendar):
         Calendar object.
 
         """
+        if isinstance(key, dict):
+            super(Calendar, self).__init__(**key)
         if isinstance(key, Calendar):
             super(Calendar, self).__init__(key)
         else:
@@ -328,7 +361,8 @@ class Calendar(Dict, _calendar):
             day_end = as_time(day_end)
             super(Calendar, self).__init__(weekend = weekend, holidays = holidays, dt2int = dt2int, int2dt = int2dt, day_start = day_start, day_end = day_end,
                                            key = key, t0 = t0, t1 = t1, adj = adj)
-        
+
+    
     def __repr__(self):
         return 'calendar(%(key)s) from %(t0)s to %(t1)s'%self
     
@@ -469,11 +503,16 @@ class Calendar(Dict, _calendar):
         t = ymd(date)
         t = datetime.datetime(t.year, t.month, t.day)
         if adj.startswith('f'):
-            while t not in self.dt2int:
+            while t not in self.dt2int and t <= self.t1:
+                t = t + day
+            while t > self.t1 and t.weekay() in self.weekend:
                 t = t + day
             return t
+                
         elif adj.startswith('p'):
-            while t not in self.dt2int:
+            while t not in self.dt2int and t >= self.t0:
+                t = t - day
+            while t < self.t0 and t.weekay() in self.weekend:
                 t = t - day
             return t
         elif adj.startswith('m'):

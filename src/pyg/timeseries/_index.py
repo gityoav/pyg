@@ -571,36 +571,67 @@ class presync(wrapper):
             return converted 
 
 @presync
-def add_(a, b):
+def _add_(a, b):
     """
     addition of a and b supporting presynching (inner join) of timeseries
     """
     return a+b
 
 @presync
-def mul_(a, b):
+def _mul_(a, b):
     """
     multiplication of a and b supporting presynching (inner join) of timeseries
     """
     return a*b
 
 @presync
-def div_(a, b):
+def _div_(a, b):
     """
     division of a by b supporting presynching (inner join) of timeseries
     """
     return a/b
 
 @presync
-def sub_(a, b):
+def _sub_(a, b):
     """
     subtraction of b from a supporting presynching (inner join) of timeseries
     """
     return a-b
 
 @presync
-def pow_(a, b):
+def _pow_(a, b):
     """
     equivalent to a**b supporting presynching (inner join) of timeseries
     """
     return a**b
+
+
+def add_(a, b):
+    """
+    addition of a and b supporting presynching (inner join) of timeseries
+    """
+    return _add_(a,b)
+
+def mul_(a, b):
+    """
+    multiplication of a and b supporting presynching (inner join) of timeseries
+    """
+    return _mul_(a,b)
+
+def div_(a, b):
+    """
+    division of a by b supporting presynching (inner join) of timeseries
+    """
+    return _div_(a,b)
+
+def sub_(a, b):
+    """
+    subtraction of b from a supporting presynching (inner join) of timeseries
+    """
+    return _sub_(a,b)
+
+def pow_(a, b):
+    """
+    equivalent to a**b supporting presynching (inner join) of timeseries
+    """
+    return _pow_(a,b)
