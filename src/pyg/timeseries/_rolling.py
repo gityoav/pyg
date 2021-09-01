@@ -79,6 +79,20 @@ def _v2na(a, old = 0.0, new = np.nan):
 @loop_all
 @pd2np
 @compiled
+def _init2v(a, n = 0, new = np.nan):
+    res = a.copy()
+    i = 0
+    while i < a.shape[0] and n > 0:
+        if ~np.isnan(a[i]):
+            res[i] = new
+            n = n-1
+        i+=1
+    return res
+
+
+@loop_all
+@pd2np
+@compiled
 def _bfill(a, limit = -1):
     """
     _bfill(np.array([np.nan, 1., np.nan])) 
@@ -429,6 +443,34 @@ def na2v(a, new = 0.0):
     """
     return _na2v(a, new)
     
+
+def init2v(a, n = 0, new = np.nan):
+    """
+    replaces initial non-nan values with a new value. This is primarily to remove initial results of a volatile fit etc.
+    
+    :Example:
+    -------
+    >>> from pyg import *
+    >>> a = np.arange(100) * 1.
+    >>> assert np.sum(a[np.isnan(init2v(a,10))]) == 0+1+2+3+4+5+6+7+8+9
+    
+    :Parameters:
+    ----------------
+    a : array/timeseries
+        data to be nanned
+    new : float, optional
+        DESCRIPTION. The default is np.nan.
+    n: int
+        number of entries to go to new value
+
+    :Returns:
+    -------
+    array/timeseries
+
+    """
+    if n == 0:
+        return a
+    return _init2v(a, n, new)
 
 
 def diff(a, n=1, axis = 0, data = None, state = None):

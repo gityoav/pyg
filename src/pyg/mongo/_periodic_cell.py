@@ -1,9 +1,9 @@
-from pyg.base import dt, dt_bump, wrapper, as_list, getcallargs, getargs
+from pyg.base import dt, dt_bump, wrapper, as_list, getcallargs, getargs, cell_item
 from pyg.mongo._db_cell import db_cell, _updated
 from pyg.mongo._table import mongo_table
 from functools import partial
 
-__all__ = ['periodic_cell']
+__all__ = ['periodic_cell', 'periodic_cache']
 _period = 'period'
 
 class periodic_cell(db_cell):
@@ -42,11 +42,40 @@ class periodic_cell(db_cell):
 
 
 class periodic_cache(wrapper):
+    """
+    periodic cache allows you to define a function and cache it for an agreed period
+    
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> @periodic_cache
+    >>> def f(a,b):
+    >>>     return a+b
+    
+    >>> assert f(1,2) == 3
+
+    :Example: access cache directly:
+    -----------------------
+    >>> assert len(f._db().inc(a = 1, b = 2, function = f.function)) == 1
+    >>> f._db().inc(a = 1, b = 2)[0]
+
+    :Parameters:
+    ------------
+    period: string
+        period between each evaluation
+    pk: str/list
+        primary keys of the table, using the keyword arguments of the function. If missing, uses all keywords
+    db: str
+        name of database where data is to be stored
+    table: str
+        name of table/collection where data is stored
+    
+    """
     def __init__(self, function = None, pk = None, period = '1b', db = 'cache', table = 'cache'):
-        pk = as_list(pk)
+        args = getargs(function)
+        pk = args if pk is None else as_list(pk)
         if 'function' not in pk:
             pk = ['function'] + pk
-        args = getargs(function)
         for key in pk:
             if not (key == 'function' or key in args):
                 raise ValueError('cannot cache function on a key "%s" which is not in its function signature %s'%(key, args))
@@ -60,5 +89,5 @@ class periodic_cache(wrapper):
     def wrapped(self, *args, **kwargs):
         callargs = getcallargs(self.function, *args, **kwargs)
         db = self._db
-        c = periodic_cell(self.function, db = db, period = self.period, **callargs)()
-        return c.get('data')
+        return cell_item(periodic_cell(self.function, db = db, period = self.period, **callargs)())
+

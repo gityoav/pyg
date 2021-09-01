@@ -118,7 +118,7 @@ def _as_primitive(value):
     elif isinstance(value, Enum):
         return _as_primitive(value.value)
     else:
-        return value
+        return encode(value)
 
 def as_primitive(value):
     return _as_primitive(value)

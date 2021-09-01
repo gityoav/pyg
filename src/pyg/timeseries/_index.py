@@ -341,6 +341,69 @@ def df_reindex(ts, index = None, method = None, limit = None):
         index = pd.Index(index)
     return _df_reindex(ts, index = index, method = method, limit = limit)
 
+
+def df_concat(objs, columns = None, axis=1, join = 'outer'):
+    """
+    simple concatenator, 
+    - defaults to to concatenating by date (for timeseries)
+    - supports columns renaming
+
+    :Parameters:
+    ----------
+    objs : list/dict
+        collection of timeseries
+    columns : str/list
+        Names of new columns. The default is None.
+    axis : int, optional
+        axis to merge. The default is 1.
+    join : str, optional
+        join method inner/outer, see pd.concat. The default is 'outer'.
+
+    :Returns:
+    -------
+    res : pd.DataFrame
+        joined dataframe
+        
+    :Example:
+    ---------
+    >>> objs = [pd.Series([1,2,3], [4,5,6]), pd.Series([3,4,5], [1,2,4])]
+    >>> columns = ['a', 'b']; 
+    >>> axis = 1; join = 'outer'
+    >>> res = df_concat(objs, columns)
+
+    >>> res
+    >>>      a    b
+    >>> 1  NaN  3.0
+    >>> 2  NaN  4.0
+    >>> 4  1.0  5.0
+    >>> 5  2.0  NaN
+    >>> 6  3.0  NaN    
+
+    >>> df_concat(res, dict(a = 'x', b = 'y'))
+    >>> res
+    >>>      x    y
+    >>> 1  NaN  3.0
+    >>> 2  NaN  4.0
+    >>> 4  1.0  5.0
+    >>> 5  2.0  NaN
+    >>> 6  3.0  NaN    
+
+    """
+    if isinstance(objs, dict):
+        columns = list(objs.keys())
+        objs = list(objs.values())
+    if isinstance(objs, list):
+        res = pd.concat(objs, axis = axis, join = join)
+    elif isinstance(objs, pd.DataFrame):
+        res = objs.copy() if columns is not None else objs
+    if columns is not None:
+        if isinstance(columns, list):
+            res.columns = columns 
+        else:
+            res = res.rename(columns = columns)
+    return res
+
+
 @loop(list, dict, tuple)
 def df_column(ts, column, i = None, n = None):
     if is_df(ts):
