@@ -60,6 +60,23 @@ def cor_calculation_ewm(t0, a1, a2, b1, b2, w2, ab, min_sample, bias = False):
         return np.nan
 
 @compiled
+def corr_calculation_ewm(ab0, a0, a1, a2, aw2, b0, b1, b2, bw2, ab, min_sample, bias = False):
+    if ab0<=min_sample:
+        return np.nan
+    Eab = ab/ab0
+    Ea = a1/a0
+    Eb = b1/b0
+    STDa = stdev_calculation_ewm(a0, a1, a2, aw2, min_sample = min_sample, bias = bias)
+    STDb = stdev_calculation_ewm(b0, b1, b2, bw2, min_sample = min_sample, bias = bias)
+    denom = STDa * STDb
+    if denom > 0:
+        return (Eab - Ea*Eb)/denom
+    else:
+        return np.nan
+
+
+
+@compiled
 def LR_calculation_ewm(t0, a1, a2, b1, b2, w2, ab, min_sample, bias = False):
     if t0<=min_sample:
         return np.nan, np.nan

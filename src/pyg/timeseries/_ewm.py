@@ -1,8 +1,8 @@
-import numpy as np; import pandas as pd
-from pyg.timeseries._math import stdev_calculation_ewm, skew_calculation, cor_calculation_ewm, LR_calculation_ewm, variance_calculation_ewm
+import numpy as np; import pandas as pd; import xarray as xr
+from pyg.timeseries._math import stdev_calculation_ewm, skew_calculation, cor_calculation_ewm, corr_calculation_ewm, LR_calculation_ewm, variance_calculation_ewm
 from pyg.timeseries._decorators import compiled, first_, _data_state
 from pyg.timeseries._index import presync
-from pyg.base import pd2np, clock, loop_all, loop, is_pd
+from pyg.base import pd2np, clock, loop_all, loop, is_pd, is_df
 
 __all__ = ['ewma', 'ewmstd', 'ewmvar', 'ewmskew', 'ewmrms',  'ewmcor', 'ewmLR', 'ewmGLM',
            'ewma_', 'ewmstd_', 'ewmskew_', 'ewmrms_', 'ewmcor_', 'ewmvar_','ewmLR_', 'ewmGLM_',]
@@ -25,7 +25,7 @@ def _w(n):
 
 ############################################
 ##
-## compiled functions
+## compiled functions, unfortunately, both these methods are much slower
 ##
 ###########################################
 
@@ -200,6 +200,191 @@ def _ewmcor(a, b, ba, n, time, t = np.nan, t0 = 0, a1 = 0, a2 = 0, b1 = 0, b2 = 
             i0 = i
             res[i0] = cor_calculation_ewm(t0 = t0, a1 = a1, a2 = a2, b1 = b1, b2 = b2, ab = ab, w2 = w2, min_sample = min_sample, bias = bias)
     return res, t, t0, a1, a2, b1, b2, ab, w2
+
+
+@compiled
+def _ewmcorr(a, n, a0 = None, a1 = None, a2 = None, aa0 = None, aa1 = None, w2 = None, min_sample = 0.25, bias = False):
+    """
+    >>> from pyg import * 
+    >>> rtn = np.random.normal(0,1,10000)
+    >>> x0 = ewmxo(rtn, 10, 20, 30)[50:]
+    >>> x1 = ewmxo(rtn, 20, 40, 30)[50:]
+    >>> x2 = ewmxo(rtn, 5, 10, 30)[50:]
+    >>> a = np.array([x0,x1]).T    
+    
+    pd.DataFrame(a).corr()
+              0         1
+    0  1.000000  0.865338
+    1  0.865338  1.000000
+
+    n = 50
+    min_sample = 0.25; bias = False    
+    
+    res, a0, a1, a2, aa0, aa1, w2 = _ewmcorr(a, n, min_sample = min_sample, bias = bias)
+    res[0]    
+    res[-1]
+    
+    res, a0, a1, a2, aa0, aa1, w2 = _ewmcorr(a, n, a0 = a0, a1 = a1, a2 = a2, aa0 = aa0, aa1 = aa1, w2 = w2, min_sample = min_sample, bias = bias)
+    res[0]
+
+
+    >>> a = np.array([x0,x1,x2]).T    
+    >>> a = pd.DataFrame(a, drange(1-len(a)), columns = ['a', 'b', 'c'])
+    res, a0, a1, a2, aa0, aa1, w2 = _ewmcorr(ts, n, min_sample = min_sample, bias = bias)
+    
+
+
+    """
+    w = _w(n)
+    v = 1 - w
+    m = a.shape[1]
+    res = np.zeros((a.shape[0], m, m))
+    a0 = np.zeros(m) if a0 is None else a0
+    a1 = np.zeros(m) if a1 is None else a1
+    a2 = np.zeros(m) if a2 is None else a2
+    aa1 = np.zeros((m,m)) if aa1 is None else aa1
+    aa0 = np.zeros((m,m)) if aa0 is None else aa0
+    w2 = np.zeros(m) if w2 is None else w2
+    for i in range(a.shape[0]):
+        for j in range(m):
+            res[i, j, j] = 1.
+            if np.isnan(a[i,j]):
+                res[i, j, :] = np.nan
+                res[i, :, j] = np.nan
+            else:
+                p = w
+                w2[j] = w2[j] * p**2 + v**2
+                a0[j] = a0[j] * p + v
+                a1[j] = a1[j] * p + v * a[i,j]
+                a2[j] = a2[j] * p + v * a[i,j] ** 2
+        
+            for k in range(j):
+                if ~np.isnan(a[i,k]):
+                    aa0[j,k] = aa0[j,k] * p + v 
+                    aa1[j,k] = aa1[j,k] * p + v * a[i, j] * a[i, k]
+                    res[i, k, j] = res[i, j, k] = corr_calculation_ewm(a0 = a0[j], a1 = a1[j], a2 = a2[j], aw2 = w2[j], 
+                                                        b0 = a0[k], b1 = a1[k], b2 = a2[k], bw2 = w2[k],
+                                                        ab = aa1[j,k], ab0 = aa0[j,k],
+                                                        min_sample = min_sample, bias = bias)                    
+    return res, a0, a1, a2, aa0, aa1, w2
+
+
+def ewmcorr_(a, n, min_sample = 0.25, bias = False, instate = None):
+    """
+    This calculates a full correlation matrix as a timeseries. Also returns the recent state of the calculations.
+    See ewmcorr for full details.
+    
+    """
+    state = {} if instate is None else instate
+    if isinstance(a, np.ndarray):
+        res, a0, a1, a2, aa0, aa1, w2 = _ewmcorr(a, n, min_sample = min_sample, bias = bias, **state)
+        if res.shape[1] == 2:
+            res = res[:, 0, 1]
+        return dict(data = res, state = dict(a0=a0, a1=a1, a2=a2, aa0=aa0, aa1=aa1, w2 = w2))
+    elif is_df(a):
+        index = a.index
+        res, a0, a1, a2, aa0, aa1, w2 = _ewmcorr(a.values, n, min_sample = min_sample, bias = bias, **state)
+        state = dict(a0=a0, a1=a1, a2=a2, aa0=aa0, aa1=aa1, w2 = w2)
+        if a.shape[1] == 2:
+            res = pd.Series(res[:,0,1], index)
+            return dict(data = res, state = state)
+        else:
+            columns = list(a.columns)
+            ds = xr.Dataset(data_vars = dict(cor = (['index', 'x', 'y'], res)), 
+                       coords = dict(index = index, x = columns, y = columns))
+            return dict(data = ds, state = state)
+    
+
+def ewmcorr(a, n, min_sample = 0.25, bias = False, instate = None):
+    """
+    This calculates a full correlation matrix as a timeseries. 
+    The calculation is returned as an xarray.Dataset object, which is a multidimensional data structure.
+
+    :Parameters:
+    ----------
+    a : np.array or a pd.DataFrame
+        timeseries to calculate correlation for
+    n : int
+        days for which rolling correlation is calculated.
+    min_sample : float, optional
+        Minimum observations needed before we calculate correlation. The default is 0.25.
+    bias : bool, optional
+        input to stdev calculations, the default is False.
+    instate : dict, optional
+        historical calculations so far.
+
+    Returns
+    -------
+    correlation dataset
+        an xarray.Dataset unless there are only two timeserieses
+        
+        
+    :Example: a pair of ts
+    ---------
+    >>> rtn = np.random.normal(0,1,10000)
+    >>> x0 = ewmxo(rtn, 10, 20, 30)[50:]
+    >>> x1 = ewmxo(rtn, 20, 40, 30)[50:]
+    >>> a = pd.DataFrame(np.array([x0,x1]).T, drange(-9949))
+    >>> res = ewmcorr(a, n)
+    >>> res
+    
+    >>>     Out[130]: 
+    >>>     1994-06-07         NaN
+    >>>     1994-06-08         NaN
+    >>>     1994-06-09         NaN
+    >>>     1994-06-10         NaN
+    >>>     1994-06-11         NaN
+      
+    >>>     2021-08-29    0.890766
+    >>>     2021-08-30    0.886926
+    >>>     2021-08-31    0.883054
+    >>>     2021-09-01    0.879577
+    >>>     2021-09-02    0.875766
+    >>>     Length: 9950, dtype: float64    
+
+    :Example: a pair of ts
+    ---------
+    >>> rtn = np.random.normal(0,1,10000)
+    >>> x0 = ewmxo(rtn, 10, 20, 30)[50:]
+    >>> x1 = ewmxo(rtn, 20, 40, 30)[50:]
+    >>> x2 = ewmxo(rtn, 40, 80, 30)[50:]
+    >>> a = pd.DataFrame(np.array([x0,x1,x2]).T, drange(-9949), ['a','b','c'])
+    >>> ds = ewmcorr(a, n)
+    >>> ds
+    
+    >>> <xarray.Dataset>
+    >>> Dimensions:  (index: 9950, x: 3, y: 3)
+    >>> Coordinates:
+    >>>   * index    (index) datetime64[ns] 1994-06-07 1994-06-08 ... 2021-09-02
+    >>>   * x        (x) <U1 'a' 'b' 'c'
+    >>>   * y        (y) <U1 'a' 'b' 'c'
+    >>> Data variables:
+    >>>     cor      (index, x, y) float64 1.0 nan nan nan ... 0.9402 0.7254 0.9402 1.0
+
+    To access individual correlations:    
+    >>> a_vs_b = pd.Series(ds.loc[dict(x = 'a', y = 'b')].cor.values, ds.index.values)
+    
+    To access all correlations to a:    
+    >>> subset = ds.loc[dict(x = 'a')]
+    >>> a_vs_all = pd.DataFrame(subset.cor.values, ds.index.values, subset.y.values)
+    >>> a_vs_all
+    
+    >>>                   a         b         c
+    >>> 1994-06-07  1.0       NaN       NaN
+    >>> 1994-06-08  1.0       NaN       NaN
+    >>> 1994-06-09  1.0       NaN       NaN
+    >>> 1994-06-10  1.0       NaN       NaN
+    >>> 1994-06-11  1.0       NaN       NaN
+    >>>         ...       ...       ...
+    >>> 2021-08-29  1.0  0.890766  0.753859
+    >>> 2021-08-30  1.0  0.886926  0.746812
+    >>> 2021-08-31  1.0  0.883054  0.739746
+    >>> 2021-09-01  1.0  0.879577  0.733322
+    >>> 2021-09-02  1.0  0.875766  0.725399
+    
+    """
+    return ewmcorr_(a, n, min_sample = 0.25, bias = False, instate = None).get('data')
+
 
 
 @pd2np
