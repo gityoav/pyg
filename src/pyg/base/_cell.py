@@ -431,7 +431,13 @@ class cell(dictattr):
             return self
         elif go!=0 or self.run():
             if hasattr(self, '_address'):
-                logger.info(str(self._address))
+                address = self._address
+                if isinstance(address, tuple) and len(address) == 6:
+                    pairs = ', '.join([("%s = '%s'" if isinstance(value, str) else "%s = %s")%(key, value) for key, value in zip(address[-2], address[-1])])
+                    msg = "get_cell(db = '%s', table = '%s', %s)()"%(address[2], address[3], pairs)
+                else:
+                    msg = str(address)
+                logger.info(msg)
             kwargs = {arg: self[arg] for arg in self._args if arg in self}
             function = self.function if isinstance(self.function, cell_func) else cell_func(self.function)
             res, called_args, called_kwargs = function(go = go-1 if go>0 else go, mode = mode, **kwargs)
