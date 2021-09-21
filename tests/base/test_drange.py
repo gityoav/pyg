@@ -1,4 +1,4 @@
-from pyg import drange, Calendar, calendar, clock, dt, date_range, day, timer, eq, as_time, TMIN, TMAX
+from pyg import drange, Calendar, calendar, clock, dt, date_range, DAY, timer, eq, as_time, TMIN, TMAX
 import datetime
 import pandas as pd; import numpy as np
 import pytest
@@ -6,11 +6,11 @@ from pyg.base._drange import _quarter_clock
 
 t0 = dt(0)
 def test_date_range():
-    assert date_range(-10) == [dt(0) - 10 * day, dt(0)]
-    assert date_range(10) == [dt(0), dt(0) + 10 * day]
-    assert date_range(2000, 10) == [dt(2000,1,1), dt(2000) + 10 * day]
-    assert date_range('20000101', 10) == [dt(2000,1,1), dt(2000) + 10 * day]
-    assert date_range(-3, '1w') == [dt(0) - 3*day, dt(0) + 7 * day]
+    assert date_range(-10) == [dt(0) - 10 * DAY, dt(0)]
+    assert date_range(10) == [dt(0), dt(0) + 10 * DAY]
+    assert date_range(2000, 10) == [dt(2000,1,1), dt(2000) + 10 * DAY]
+    assert date_range('20000101', 10) == [dt(2000,1,1), dt(2000) + 10 * DAY]
+    assert date_range(-3, '1w') == [dt(0) - 3*DAY, dt(0) + 7 * DAY]
 
 
 def test_calendar_date_range():
@@ -113,6 +113,7 @@ def test_calendar_drange():
 
 def test_calendar_implementation_is_faster_than_rrule():
     cal = calendar('US', holidays = [dt(2000,1,4), dt(2000,1,10)])
+    cal._populate()
     assert timer(lambda : cal.drange(2000,2010,'1b'), 10, True)() < timer(lambda : drange(2000,2010,'1b'), 10, True)()
     assert timer(lambda : cal.drange(2000,2010,'10b'), 10, True)() < timer(lambda : drange(2000,2010,'10b'), 10, True)()
 
@@ -145,34 +146,34 @@ def test_clock():
 
 
 def test_calendar_trade_date():
-    uk = calendar('UK', day_start = 8, day_end = 17)
-    assert uk.trade_date(dt(2021,2,9,5), 'f') == dt(2021, 2, 9)  # Tuesday morning rolls into Tuesday
-    assert uk.trade_date(dt(2021,2,9,5), 'p') == dt(2021, 2, 8)  # Tuesday morning back into Monday
-    assert uk.trade_date(dt(2021,2,7,5), 'f') == dt(2021, 2, 8)  # Sunday rolls into Monday
-    assert uk.trade_date(dt(2021,2,7,5), 'p') == dt(2021, 2, 5)  # Sunday rolls back to Friday
+    uk = calendar('UK')
+    assert uk.trade_date(dt(2021,2,9,5), 'f', day_start = 8, day_end = 17) == dt(2021, 2, 9)  # Tuesday morning rolls into Tuesday
+    assert uk.trade_date(dt(2021,2,9,5), 'p', day_start = 8, day_end = 17) == dt(2021, 2, 8)  # Tuesday morning back into Monday
+    assert uk.trade_date(dt(2021,2,7,5), 'f', day_start = 8, day_end = 17) == dt(2021, 2, 8)  # Sunday rolls into Monday
+    assert uk.trade_date(dt(2021,2,7,5), 'p', day_start = 8, day_end = 17) == dt(2021, 2, 5)  # Sunday rolls back to Friday
     
-    assert uk.trade_date(date = dt(2021,2,9,23), adj = 'f') == dt(2021, 2, 10)  # Tuesday eve rolls into Wed
-    assert uk.trade_date(date = dt(2021,2,9,23), adj = 'p') == dt(2021, 2, 9)  # Tuesday eve back into Tuesday
-    assert uk.trade_date(date = dt(2021,2,7,23), adj = 'f') == dt(2021, 2, 8)  # Sunday rolls into Monday
-    assert uk.trade_date(date = dt(2021,2,7,23), adj = 'p') == dt(2021, 2, 5)  # Sunday rolls back to Friday
+    assert uk.trade_date(date = dt(2021,2,9,23), adj = 'f', day_start = 8, day_end = 17) == dt(2021, 2, 10)  # Tuesday eve rolls into Wed
+    assert uk.trade_date(date = dt(2021,2,9,23), adj = 'p', day_start = 8, day_end = 17) == dt(2021, 2, 9)  # Tuesday eve back into Tuesday
+    assert uk.trade_date(date = dt(2021,2,7,23), adj = 'f', day_start = 8, day_end = 17) == dt(2021, 2, 8)  # Sunday rolls into Monday
+    assert uk.trade_date(date = dt(2021,2,7,23), adj = 'p', day_start = 8, day_end = 17) == dt(2021, 2, 5)  # Sunday rolls back to Friday
     
-    assert uk.trade_date(date = dt(2021,2,9,12), adj = 'f') == dt(2021, 2, 9)  # Tuesday is Tuesday
-    assert uk.trade_date(date = dt(2021,2,9,12), adj = 'p') == dt(2021, 2, 9)  # Tuesday is Tuesday
+    assert uk.trade_date(date = dt(2021,2,9,12), adj = 'f', day_start = 8, day_end = 17) == dt(2021, 2, 9)  # Tuesday is Tuesday
+    assert uk.trade_date(date = dt(2021,2,9,12), adj = 'p', day_start = 8, day_end = 17) == dt(2021, 2, 9)  # Tuesday is Tuesday
     
-    au = calendar('AU', day_start = 2230, day_end = 1300)
-    assert au.trade_date(dt(2021,2,9,5), 'f') == dt(2021, 2, 9)  # Tuesday morning in session
-    assert au.trade_date(dt(2021,2,9,5), 'p') == dt(2021, 2, 9)  # Tuesday morning in session
-    assert au.trade_date(dt(2021,2,7,5), 'f') == dt(2021, 2, 8)  # Sunday rolls into Monday
-    assert au.trade_date(dt(2021,2,7,5), 'p') == dt(2021, 2, 5)  # Sunday rolls back to Friday
+    au = calendar('AU')
+    assert au.trade_date(dt(2021,2,9,5), 'f', day_start = 2230, day_end = 1300) == dt(2021, 2, 9)  # Tuesday morning in session
+    assert au.trade_date(dt(2021,2,9,5), 'p', day_start = 2230, day_end = 1300) == dt(2021, 2, 9)  # Tuesday morning in session
+    assert au.trade_date(dt(2021,2,7,5), 'f', day_start = 2230, day_end = 1300) == dt(2021, 2, 8)  # Sunday rolls into Monday
+    assert au.trade_date(dt(2021,2,7,5), 'p', day_start = 2230, day_end = 1300) == dt(2021, 2, 5)  # Sunday rolls back to Friday
     
-    assert au.trade_date(date = dt(2021,2,9,23), adj = 'f') == dt(2021, 2, 10)  # Tuesday eve rolls into Wed
-    assert au.trade_date(date = dt(2021,2,9,23), adj = 'p') == dt(2021, 2, 10)  # Already in Wed
-    assert au.trade_date(date = dt(2021,2,7,23), adj = 'f') == dt(2021, 2, 8)  # Sunday rolls into Monday
-    assert au.trade_date(date = dt(2021,2,7,23), adj = 'p') == dt(2021, 2, 8)  # Already on Monday
-    assert au.trade_date(date = dt(2021,2,5,23), adj = 'f') == dt(2021, 2, 8)  # Friday afternoon rolls into Monday
+    assert au.trade_date(date = dt(2021,2,9,23), adj = 'f', day_start = 2230, day_end = 1300) == dt(2021, 2, 10)  # Tuesday eve rolls into Wed
+    assert au.trade_date(date = dt(2021,2,9,23), adj = 'p', day_start = 2230, day_end = 1300) == dt(2021, 2, 10)  # Already in Wed
+    assert au.trade_date(date = dt(2021,2,7,23), adj = 'f', day_start = 2230, day_end = 1300) == dt(2021, 2, 8)  # Sunday rolls into Monday
+    assert au.trade_date(date = dt(2021,2,7,23), adj = 'p', day_start = 2230, day_end = 1300) == dt(2021, 2, 8)  # Already on Monday
+    assert au.trade_date(date = dt(2021,2,5,23), adj = 'f', day_start = 2230, day_end = 1300) == dt(2021, 2, 8)  # Friday afternoon rolls into Monday
     
-    assert au.trade_date(date = dt(2021,2,9,14), adj = 'f') == dt(2021, 2, 10)  # Tuesday is over, roll to Wed
-    assert au.trade_date(date = dt(2021,2,9,14), adj = 'p') == dt(2021, 2, 9)  # roll back to Tues
+    assert au.trade_date(date = dt(2021,2,9,14), adj = 'f', day_start = 2230, day_end = 1300) == dt(2021, 2, 10)  # Tuesday is over, roll to Wed
+    assert au.trade_date(date = dt(2021,2,9,14), adj = 'p', day_start = 2230, day_end = 1300) == dt(2021, 2, 9)  # roll back to Tues
 
 def test_as_time():
     t0 = as_time(dt()) 
@@ -214,20 +215,19 @@ def test_calendar__repr__():
     
     
 def test_calendar_is_trading():
-    cal = calendar('US')
+    cal = calendar('test')
     assert cal.is_trading(dt(2021,3,1))
     assert cal.is_trading(dt(2021,3,1,10,20,40))
     assert not cal.is_trading(dt(2021,2,28))
-    cal = calendar('test', day_start = 7, day_end = 18)
-    assert cal.day_start == datetime.time(7, 0) and cal.day_end == datetime.time(18, 0)
-    assert not cal.is_trading(dt(2021,3,1))
-    assert cal.is_trading(dt(2021,3,1,8))
-    assert cal.is_trading(dt(2021,3,1,18))
-    assert not cal.is_trading(dt(2021,3,1,19))
-    cal = calendar('aud', day_start = 20, day_end = 7)
-    assert cal.is_trading(dt(2021,3,1))
-    assert not cal.is_trading(dt(2021,3,1,8)) ## Monday post close
-    assert cal.is_trading(dt(2021,2,28,23)) ## Sunday night
+
+    assert not cal.is_trading(dt(2021,3,1), day_start = 7, day_end = 18)
+    assert cal.is_trading(dt(2021,3,1,8), day_start = 7, day_end = 18)
+    assert cal.is_trading(dt(2021,3,1,18), day_start = 7, day_end = 18)
+    assert not cal.is_trading(dt(2021,3,1,19), day_start = 7, day_end = 18)
+
+    assert cal.is_trading(dt(2021,3,1), day_start = 20, day_end = 7)
+    assert not cal.is_trading(dt(2021,3,1,8), day_start = 20, day_end = 7) ## Monday post close
+    assert cal.is_trading(dt(2021,2,28,23), day_start = 20, day_end = 7) ## Sunday night
 
 
 def test_calendar_modified_adj():

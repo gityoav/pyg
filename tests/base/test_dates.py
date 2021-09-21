@@ -1,10 +1,9 @@
-from pyg import dt, dt_bump, drange, dt,dt_bump, today, ymd, TMIN, TMAX, day, futcodes, dt2str, eq
+from pyg import dt, dt_bump, drange, dt,dt_bump, today, ymd, TMIN, TMAX, DAY, futcodes, dt2str, eq
 from pyg.base._dates import is_period, ym, month, uk2dt, us2dt
 import datetime
 import pytest
 import dateutil as du
 d = datetime.datetime
-day = datetime.timedelta(1)
 t = dt.now()
 t0 = d(t.year, t.month, t.day)
 import numpy as np
@@ -24,8 +23,9 @@ def test_month():
 def test_dt_utc():
     t = dt()
     timestamp = t.timestamp()
-    datetime.datetime.utcfromtimestamp(timestamp) == t
-    assert dt(timestamp) == t
+    assert dt(timestamp) == datetime.datetime.utcfromtimestamp(timestamp)
+    if datetime.datetime.utcfromtimestamp(timestamp) == t:
+        assert dt(timestamp) == t
 
 def test_ym():
     assert ym(2000, -1) == (1999,11)
@@ -212,6 +212,7 @@ def test_drange():
                                                      datetime.datetime(1999, 12, 30, 0, 0),
                                                      datetime.datetime(1999, 12, 31, 0, 0), datetime.datetime(2000, 1, 3, 0, 0)]
 
+    day = DAY
     assert drange(-5) == [t0 - 5*day, t0 - 4*day, t0 - 3*day, t0-2*day, t0-day, t0]
     assert drange(5) == [t0 + 5*day, t0 + 4*day, t0 + 3*day, t0 + 2*day,  t0 + day, t0][::-1]
     

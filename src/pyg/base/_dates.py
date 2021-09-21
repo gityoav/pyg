@@ -13,7 +13,7 @@ import dateutil as du
 TMIN = datetime.datetime(1900,1,1)
 TMAX = datetime.datetime(2300,1,1)
 microsecond = datetime.timedelta(microseconds = 1)
-day = datetime.timedelta(days = 1)
+DAY = datetime.timedelta(days = 1)
 iso = re.compile('^[0-9]{4}-[0-9]{2}-[0-9]{2}T')
 ambiguity = re.compile('^[0-9]{2}[-/ .][0-9]{2}[-/ .][0-9]{4}')
 futcodes = list('fghjkmnquvxz'.upper())
@@ -21,7 +21,7 @@ months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 
 period = re.compile('^[-+]{0,1}[0-9]*[dbwmqyDBWMQY]$')
 
 
-__all__ = ['dt','dt_bump', 'today', 'ymd', 'TMIN', 'TMAX', 'day', 'futcodes', 'dt2str', 'is_period']
+__all__ = ['dt','dt_bump', 'today', 'ymd', 'TMIN', 'TMAX', 'DAY', 'futcodes', 'dt2str', 'is_period']
 
 def today(date = None):
     now = date or datetime.datetime.now()
@@ -111,12 +111,12 @@ def _ymd(y,m,d):
     """
     y,m = ym(y,m)
     d = int(d) if is_float(d) and int(d) == d else d
-    return datetime.datetime(y,m,1) + (d-1) * day
+    return datetime.datetime(y,m,1) + (d-1) * DAY
 
 def num2dt(n):
     i = int(n); f = datetime.timedelta(n - i)
     if i<=1500:
-        return today() + i * day + f
+        return today() + i * DAY + f
     elif i<=3000:
         return datetime.datetime(i, 1, 1) + f
     elif i < 300000:
@@ -234,7 +234,7 @@ def dt_bump(t, *bumps):
     t = t if isinstance(t, datetime.datetime) else dt(t)
     for bump in bumps:
         if is_int(bump):
-            t = t + day * bump
+            t = t + DAY * bump
         elif isinstance(bump, (datetime.timedelta, du.relativedelta.relativedelta)):
             t = t + bump
         elif is_str(bump):
@@ -242,9 +242,9 @@ def dt_bump(t, *bumps):
             if not is_period(bump):
                 raise ValueError('%s is not a period I know...'%bump)
             if bump.endswith('d'):
-                t = t + day * int(bump[:-1])
+                t = t + DAY * int(bump[:-1])
             elif bump.endswith('w'):
-                t  = t + day * (7 * int(bump[:-1]))
+                t  = t + DAY * (7 * int(bump[:-1]))
             elif bump.endswith('m'):
                 t = _ymd(t.year, t.month + int(bump[:-1]), t.day)
             elif bump.endswith('q'):
@@ -255,14 +255,14 @@ def dt_bump(t, *bumps):
                 bdays = int(bump[:-1])
                 wday = t.weekday()
                 if wday>4:
-                    t = t + (7-wday) * day
+                    t = t + (7-wday) * DAY
                     wday = 0
                 w = bdays // 5
                 d = bdays - w * 5
-                t = t + day * (7*w)
+                t = t + DAY * (7*w)
                 if wday + d > 4:
                     d+=2
-                t += day * d
+                t += DAY * d
         else:
             t = t + bump
     return t

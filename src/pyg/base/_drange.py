@@ -1,4 +1,4 @@
-from pyg.base._dates import dt, day, TMIN, TMAX, dt_bump, is_period, is_bump, ymd
+from pyg.base._dates import dt, DAY, TMIN, TMAX, dt_bump, is_period, is_bump, ymd
 from pyg.base._types import is_int, is_str, is_ts, is_arr, is_pd, is_nan
 from pyg.base._as_list import as_list 
 from pyg.base._dict import Dict
@@ -15,8 +15,7 @@ import numpy as np
 import re
 
 weekdays = {0: MO, 1: TU, 2: WE, 3: TH, 4: FR, 5: SA, 6: SU}
-TMIN = datetime.datetime(1901, 1, 1)
-TMAX = datetime.datetime(2300, 1, 1)
+
 HOUR = datetime.timedelta(hours = 1)
 minute = datetime.timedelta(minutes = 1)
 second = datetime.timedelta(seconds = 1)
@@ -244,7 +243,12 @@ _c  = _calendar()
 def date_range(t0 = None, t1 = None):
     return _c.date_range(t0, t1)
         
-    
+
+"""
+calendars is implemented as a factory of calendars indexed by key
+
+We therefore choose to make any modifications to the calendar object in-place
+"""
 calendars = dict()
 
 class Calendar(Dict, _calendar):
@@ -307,7 +311,7 @@ class Calendar(Dict, _calendar):
     
     >>> assert cal.bdays(dt(2013,9,0), dt(2013,9,7)) == 5
     """
-    def __init__(self, key = None, holidays = None, weekend = None, t0 = None, t1 = None, adj = 'm', day_start = 0, day_end = 235959):
+    def __init__(self, key = None, holidays = None, weekend = None, t0 = None, t1 = None, adj = 'm'):
         """
         :Parameters:
         ----------------
@@ -327,10 +331,6 @@ class Calendar(Dict, _calendar):
                 'f'ollowing : next date
                 'p'revious: previous date
                 'm'odified following: following date unless following date is in a different month, when we use previous.
-        day_start: time/int
-            what time does trading day start    
-        day_end: time/int
-            what time does trading day end
 
         :Returns:
         -------
@@ -353,20 +353,33 @@ class Calendar(Dict, _calendar):
             else:
                 weekend = as_list(weekend)
             holidays = as_list(holidays)
-            byweekday = tuple(v for k,v in weekdays.items() if k not in weekend)
-            bdays = [date for date in rrule(DAILY, interval = 1, dtstart = t0, until = t1, byweekday = byweekday) if date not in holidays]
-            dt2int = dict(zip(bdays, range(len(bdays))))        
-            int2dt = dict(zip(range(len(bdays)), bdays))
-            day_start = as_time(day_start)
-            day_end = as_time(day_end)
-            super(Calendar, self).__init__(weekend = weekend, holidays = holidays, dt2int = dt2int, int2dt = int2dt, day_start = day_start, day_end = day_end,
+            holidays = dict(zip(holidays, holidays)) # we prefer to store holidays as a dict, as check of date in holidays is faster for hash
+            super(Calendar, self).__init__(weekend = weekend, holidays = holidays,
                                            key = key, t0 = t0, t1 = t1, adj = adj)
 
+
+    def _populate(self):
+        """
+        This is run once as it is quite expensive
+        """
+        if self.get('dt2int') is None or self.get('int2dt') is None:
+            byweekday = tuple(v for k,v in weekdays.items() if k not in self.weekend)
+            bdays = [date for date in rrule(DAILY, interval = 1, dtstart = self.t0, until = self.t1, byweekday = byweekday) if date not in self.holidays]
+            self['dt2int'] = dict(zip(bdays, range(len(bdays))))        
+            self['int2dt'] = dict(zip(range(len(bdays)), bdays))
+        return self
+        
     
     def __repr__(self):
         return 'calendar(%(key)s) from %(t0)s to %(t1)s'%self
     
-    def is_trading(self, date = None):
+    def is_holiday(self, date):
+        return date.weekday() in self.weekend or ymd(date) in self.holidays
+    
+    def is_bday(self, date):
+        return date.weekday() not in self.weekend and ymd(date) not in self.holidays
+
+    def is_trading(self, date = None, day_start = 0, day_end = 235959):
         """
         calculates if we are within a trading session 
 
@@ -381,18 +394,19 @@ class Calendar(Dict, _calendar):
             are we within a trading session
         """
         tod = as_time(date)
+        day_start = as_time(day_start); day_end = as_time(day_end)
         day = ymd(date)
-        if self.day_end >= self.day_start:
-            return tod <= self.day_end and tod >= self.day_start and self.adjust(day)==day
+        if day_end >= day_start:
+            return tod <= day_end and tod >= day_start and self.is_bday(day)
         else:
-            if tod>=self.day_start and self.adjust(day + datetime.timedelta(1)) == day + datetime.timedelta(1): # we are within tomorrow's session
+            if tod>=day_start and self.is_bday(day + DAY): # we are within tomorrow's session
                 return True
-            elif tod<=self.day_end and self.adjust(day) == day: # we are within today's session
+            elif tod<=day_end and self.is_bday(day): # we are within today's session
                 return True
             else:
                 return False
 
-    def trade_date(self, date = None, adj = None):
+    def trade_date(self, date = None, adj = None, day_start = 0, day_end = 235959):
         """
         This is very similar for adjust, but it also takes into account the time of the day.
         if day_start = 0 and day_end = 23:59:59 then this is exactly adjust.
@@ -443,32 +457,33 @@ class Calendar(Dict, _calendar):
         tod = as_time(date)
         day = ymd(date)
         adj = (adj or self.adj)[0].lower()
-        if self.day_end >= self.day_start:
+        day_start = as_time(day_start); day_end = as_time(day_end)        
+        if day_end >= day_start:
             res = self.adjust(day, adj)
-            if tod > self.day_end: # post today trading session
+            if tod > day_end: # post today trading session
                 if adj == 'f':
                     if res > day:
                         return res
                     else:
-                        return self.int2dt[self.dt2int[res] + 1]
+                        return self.add(res, 1)
                 elif adj == 'p':
                     return res
-            elif tod < self.day_start: # pre today session
+            elif tod < day_start: # pre today session
                 if adj == 'f':
                     return res
                 elif adj == 'p':
                     if res < day:
                         return res
                     else:
-                        return self.int2dt[self.dt2int[res] - 1]
+                        return self.add(res, -1)
             else: # in session. 
                 return res
         else:
-            if tod > self.day_start: # we are in tomorrow's trading session
+            if tod > day_start: # we are in tomorrow's trading session
                 tomorrow = day + datetime.timedelta(1)
                 res = self.adjust(tomorrow, adj)
                 return res
-            elif tod < self.day_end: # we are in today's trading session
+            elif tod < day_end: # we are in today's trading session
                 res = self.adjust(day , adj)
                 return res
             else: # we are in post-session
@@ -477,7 +492,7 @@ class Calendar(Dict, _calendar):
                     if res > day:
                         return res
                     else:
-                        return self.int2dt[self.dt2int[res] + 1]
+                        return self.add(res, 1)
                 elif adj == 'p':
                     return res
 
@@ -503,17 +518,17 @@ class Calendar(Dict, _calendar):
         t = ymd(date)
         t = datetime.datetime(t.year, t.month, t.day)
         if adj.startswith('f'):
-            while t not in self.dt2int and t <= self.t1:
-                t = t + day
+            while self.is_holiday(t) and t <= self.t1:
+                t = t + DAY
             while t > self.t1 and t.weekay() in self.weekend:
-                t = t + day
+                t = t + DAY
             return t
                 
         elif adj.startswith('p'):
-            while t not in self.dt2int and t >= self.t0:
-                t = t - day
+            while self.is_holiday(t) and t >= self.t0:
+                t = t - DAY
             while t < self.t0 and t.weekay() in self.weekend:
-                t = t - day
+                t = t - DAY
             return t
         elif adj.startswith('m'):
             t = self.adjust(date, 'f')
@@ -547,24 +562,50 @@ class Calendar(Dict, _calendar):
             return dt_bump(t, bump)
         
     def clock(self, date):
+        self._populate()
         date = ymd(date)
         return self.dt2int.get(date, self.dt2int[self.adjust(date)])
 
     def add(self, date, days, adj = None):
+        """
+        adjustes the start date to a business day. Then add business days on top.
+        add will initiate self._populate unless we are bumping date by exactly one day
+
+        Parameters
+        ----------
+        date : datetime
+            start date.
+        days : int
+            days to bump.
+        adj : str, optional
+            adjusting method for date if it isn't a business day to start with.
+
+        Returns
+        -------
+        datetime
+            bumped date.
+        """
         adj = adj or self.adj
         t = self.adjust(date, adj)
-        return self.int2dt[self.dt2int[t] + days]
-    
-    def is_bday(self, t):
-        return ymd(t) in self.dt2int
+        if abs(days)>1:
+            self._populate()
+            return self.int2dt[self.dt2int[t] + days]
+        else:
+            increment = days * DAY
+            res = t + increment
+            while self.is_holiday(res):
+                res = res + increment
+        return res
     
     def bdays(self, t0, t1, adj = None):
+        self._populate()
         adj = adj or self.adj
         return self.dt2int[self.adjust(t1, adj)] - self.dt2int[self.adjust(t0, adj)]
     
     def drange(self, t0 = None, t1 = None, bump = None):
         t0, t1 = self.date_range(t0, t1)
         if is_str(bump) and bump[-1] == 'b':
+            self._populate()
             b = int(bump[:-1])
             i0 = self.dt2int[self.adjust(t0)]
             i1 = self.dt2int[self.adjust(t1)]
@@ -573,14 +614,14 @@ class Calendar(Dict, _calendar):
             return drange(t0, t1, bump)
 
         
-def calendar(key = None, holidays = None, weekend = None, t0 = None, t1 = None, day_start = 0, day_end = 235959):
+def calendar(key = None, holidays = None, weekend = None, t0 = None, t1 = None):
     """
     A function to returns either an existing calendar or construct a new one.
     - calendar('US') will return a US calendar if that is already cached
     - calendar('US', us_holiday_dates) will construct a calendar with holiday dates and then cache it
     """
     if key not in calendars or holidays is not None or weekend is not None or t0 is not None or t1 is not None:
-        calendars[key] = Calendar(key, holidays = holidays, weekend = weekend, t0 = t0, t1 = t1, day_start = day_start, day_end = day_end)    
+        calendars[key] = Calendar(key, holidays = holidays, weekend = weekend, t0 = t0, t1 = t1)    
     return calendars[key]
 
 @np.vectorize

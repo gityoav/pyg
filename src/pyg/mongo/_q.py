@@ -195,10 +195,10 @@ class mkey(object):
         return self._set({_exists : False})
 
     def __eq__(self, other):
-        other = as_primitive(other)
         if isinstance(other, re.Pattern):
             return self._set({_regex : other.pattern})
-        elif isinstance(other, list):
+        other = as_primitive(other)
+        if isinstance(other, list):
             if len(other) == 1:
                 return self._set({_eq: other[0]})
             else:

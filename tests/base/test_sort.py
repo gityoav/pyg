@@ -38,7 +38,7 @@ def test_cmp():
     assert Cmp([1,2,3])> [1,2,0] # lexical sorting 
     assert Cmp(dict(a = 1, b = 2))< dict(a = 1, c = 2)
 
-    assert Cmp(np.array([1,2,3,4, np.nan])) > [1,2,3,4]
+    assert Cmp([1,2,3,4, np.nan]) > [1,2,3,4]
     assert Cmp(np.nan)<1
 
 

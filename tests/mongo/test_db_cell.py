@@ -6,9 +6,11 @@ from functools import partial
 from pyg import *
 import pytest
 
+updated = 'updated'
 def f(a,b):
     return a+b
 
+millisec = dt.timedelta(microseconds = 1000)
 
 def test_db_cell_save():
     db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key')    
@@ -17,15 +19,15 @@ def test_db_cell_save():
     self = db_cell(pd.Series, data  = dict(a=1,b=2), output = 'a', db = db, key = 'a')
     self = self.go()
     res = d.inc(key = 'a')[0] - '_pk'
-    assert eq(res, self)
+    assert eq(res - updated, self - updated)
 
 
     a = pd.DataFrame(dict(a = [1,2,3], b= [4,5,6])); b = 3
     self = db_cell(presync(f), a = a, b = b, db = db, key = 'b')
     self = self.go()
     res = d.inc(key = 'b')[0] - '_pk'
-    assert eq(res, self)
-
+    assert eq(res - updated, self - updated)
+    assert self.updated - res.updated < millisec
     d.raw.drop()
 
 def test_db_cell_save_root():
@@ -37,7 +39,8 @@ def test_db_cell_save_root():
     self = db_cell(presync(f), a = a, b = b, db = db, key = 'b')
     self = self.go()
     res = d.inc(key = 'b')[0] - '_pk'
-    assert eq(res, self)
+    assert eq(res - 'updated', self - 'updated')
+    assert self.updated - res.updated < millisec
     path = 'c:/temp/b/data.parquet'
     assert eq(pd_read_parquet(path), res.data)    
     res = db_cell(db = db, key = 'b').load()
@@ -45,7 +48,6 @@ def test_db_cell_save_root():
     GRAPH = {} # not from cache please
     res = db_cell(db = db, key = 'b').load() - '_pk'
     assert eq(res, self)    
-
 
 def test_db_save():
     db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key')    
@@ -112,7 +114,7 @@ def test_db_cell_clear_mix():
     assert 'data' not in x.b and 'data' not in x.a
     assert x.a.load().data == 3
     y = x.go(3)
-    assert eq(y - '_pk', d)
+    assert y.data == d.data
     db().raw.drop()
 
 
@@ -183,11 +185,11 @@ def test_db_cell_bare():
     assert cell_clear(c) == c
     c = db_cell(lambda x: x+1, x = 1)
     assert c().data == 2
-    assert c()._clear() == c
+    assert c()._clear() - updated  == c
     c = db_cell(data = 1)    
     d = db_cell(lambda x: x+1, x = c, db = db, key = 'key')
     d = d()
-    assert db().inc(key = 'key')[0].x == c
+    assert db().inc(key = 'key')[0].x - updated == c - updated
     c = db_cell(add1, x = 3)()
     assert cell_clear(c) == c- 'data'
     c = cell(add1, x = 3)
