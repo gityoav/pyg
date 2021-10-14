@@ -4,7 +4,7 @@ import datetime
 from collections import Counter
 
 from pyg.base import is_bool, try_back, replace, alphabet, ALPHABET, is_str, \
-    as_primitive, as_list, logger, tree_repr, NoneType
+    as_primitive, encode, as_list, logger, tree_repr, NoneType
 from operator import and_, or_
 from functools import reduce
 
@@ -175,7 +175,7 @@ class mkey(object):
         return _q_and([self[key] == value for key, value in kwargs.items()])
     
     def _set(self, other):
-        other = as_primitive(other)
+        other = encode(as_primitive(other))
         return mdict({self._key : other})
     
     def __pos__(self):

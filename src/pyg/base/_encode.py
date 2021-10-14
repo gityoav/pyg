@@ -3,6 +3,7 @@ import re
 from pyg.base._types import is_int, is_float, is_str, is_date, is_bool, is_pd, is_arr
 from pyg.base._dates import dt, iso
 from pyg.base._decorators import try_back
+from pyg.base._as_primitive import _as_primitive
 from pyg.base._logger import logger
 from pyg.base._loop import loop
 import pickle
@@ -18,7 +19,7 @@ _obj = '_obj'
 _data = 'data'
 iso_quote = re.compile('^"[0-9]{4}-[0-9]{2}-[0-9]{2}T')
 
-__all__ = ['encode', 'decode', 'pd2bson', 'bson2pd', 'as_primitive', 'bson2np']
+__all__ = ['encode', 'decode', 'pd2bson', 'bson2pd', 'bson2np']
 
 @try_back
 def decode_str(value):
@@ -102,26 +103,6 @@ def decode(value, date = None):
     return _decode(value, date = date)
 
 loads = partial(decode, date = True)
-
-@loop(list, tuple)
-def _as_primitive(value):
-    if is_bool(value):
-        return True if value else False
-    elif is_int(value):
-        return int(value)
-    elif is_float(value):
-        return float(value)
-    elif is_date(value):
-        return dt(value)
-    elif value is None or is_str(value):
-        return value
-    elif isinstance(value, Enum):
-        return _as_primitive(value.value)
-    else:
-        return encode(value)
-
-def as_primitive(value):
-    return _as_primitive(value)
 
 @loop(list, tuple)
 def _encode(value):

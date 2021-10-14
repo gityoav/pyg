@@ -84,19 +84,16 @@ def _data_columns_as_dict(data, columns = None):
         DESCRIPTION.
 
     """
-    if data is None and columns is None:
-        return {}
     if isinstance(data, zip):
         data = list(data)
+    if data is None or (isinstance(data, list) and data == []):
+        return {}
+    elif isinstance(data, dict):
+        return dict_concat(tree_to_table(data, columns)) if is_tree(columns) else dict(data)
     if columns is not None:
         if is_str(columns):
-            if is_tree(columns) and isinstance(data, dict):
-                return dict_concat(tree_to_table(data, columns))
-            else:
-                return {columns : data}
+            return {columns : data}
         else:
-            if len(data) == 0:
-                return {column : [] for column in columns}
             return dict(zipper(columns, zipper(*data)))
     else:
         if is_str(data):
@@ -255,6 +252,8 @@ class dictable(Dict):
         kwargs = {key :_value(value) for key, value in kwargs.items()}
         data_kwargs = {key: _value(value) for key, value in _data_columns_as_dict(data, columns).items()}
         kwargs.update(data_kwargs)
+        if is_strs(columns) and not is_tree(columns):
+            kwargs = {key : kwargs.get(key, [None]) for key in columns} if len(kwargs)>0 else {key : [] for key in columns}
         n = lens(*kwargs.values())
         kwargs = {str(key) if is_int(key) else key : value * n if len(value)==1 else value for key, value in kwargs.items()}
         super(dictable, self).__init__(kwargs)

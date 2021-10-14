@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from pyg.base._as_list import as_list
-from pyg.base._encode import as_primitive
+from pyg.base._as_primitive import as_primitive
 from pyg.base._types import is_nan, is_iterable, is_float, is_int, is_bool, is_str
 from pyg.base._loop import len0
 from pyg.base._eq import veq

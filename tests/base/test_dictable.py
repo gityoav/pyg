@@ -32,6 +32,28 @@ def test_dictable_init():
     assert dict(dictable(data = [1,2,3])) == dict(data = [1,2,3])
 
 
+def test_dictable_init_with_columns():
+    assert dict(dictable(columns = 'a')) == dict(a = [])
+    assert dict(dictable(columns = ['a', 'b'])) == dict(a = [], b = [])
+    assert dict(dictable([], columns = ['a', 'b'])) == dict(a = [], b = [])
+    assert dict(dictable(dict(a = 1, b = 2, c = [3,4]), columns = ['a', 'b'])) == dict(a = [1], b = [2])
+    assert dict(dictable(dict(a = 1, b = [2,5,6], c = [3,4]), columns = ['a', 'b'])) == dict(a = [1,1,1,], b = [2,5,6])
+    assert dict(dictable(dict(a = 1, b = [2,5,6], c = [3,4]), columns = ['a', 'c'])) == dict(a = [1,1], c = [3,4])
+    with pytest.raises(ValueError):
+        dict(dictable(dict(a = 1, b = [2,5,6], c = [3,4]), columns = ['a', 'b', 'c']))
+    with pytest.raises(ValueError):
+        dict(dictable(a = 1, b = [2,5,6], c = [3,4], columns = ['a', 'b', 'c']))
+
+
+def test_dictable_init_from_tree():    
+    columns = 'students/%id/%attr/%value'
+    data = dict(students = dict(james_munro = dict(name = 'james', age = 1, surname = 'munro'), abe_lincoln = dict(name = 'abe', age = 200, surname = 'lincoln')))
+    rs = dictable(data, columns).sort('id', 'attr')
+    assert dict(rs) == {'id': ['abe_lincoln'] * 3 + [ 'james_munro'] * 3, 
+                        'attr': ['age', 'name', 'surname', 'age', 'name', 'surname'],
+                        'value': [200, 'abe', 'lincoln', 1, 'james', 'munro']}
+    
+
 def test_dictable_get():
     d = dictable(a = [1,2,3,], b = 4)
     assert d.get('a') == d.a == [1,2,3]

@@ -92,6 +92,11 @@ def is_date(value):
     """is value a date type: either datetime.date, datetime.datetime or np.datetime64"""
     return isinstance(value, (datetime.date, datetime.datetime, np.datetime64))
 
+
+def is_primitive(value):
+    return value is None or is_bool(value) or is_num(value) or is_date(value) or is_str(value)
+
+
 def is_ts(value):
     """is value a pandas datafrome whch is indexed by datetimes"""
     if is_pd(value):

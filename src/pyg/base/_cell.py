@@ -194,9 +194,13 @@ def cell_load(value, mode = 0):
 
 class cell_func(wrapper):
     """
-    cell_func is a wrapped and wraps a function to act on cells rather than just on values
-    
+    cell_func is a wrapper and wraps a function to act on cells rather than just on values    
     When called, it will returns not just the function, but also args, kwargs used to call it.
+    
+    In order to present the itemized value in the cell, inputs for the function that are cells will:
+        1) be loaded (from the persistency layer)
+        2) called and calculated
+        3) itemized: i.e. cell_item(input)
     
     :Example:
     -------
@@ -208,9 +212,40 @@ class cell_func(wrapper):
     >>> result, args, kwargs = self(a,b)
 
     >>> assert result == 8 + 9
-    >>> assert args[0].data == 3 ** 2
-    >>> assert args[1].data == 2 ** 3
+    >>> assert kwargs['a'].data == 3 ** 2
+    >>> assert kwargs['b'].data == 2 ** 3
+    
+    :Parameters:
+    ------------
+    function : callable
+        The function to be wrapped
+    
+    relabels : dict or None
+        Allows a redirect of variable names. For example:
 
+        >>> from pyg import * 
+        >>> a = cell(a = 1, b = 2, c = 3)
+        >>> f = cell_func(lambda x: x+1, relabels = dict(x = 'c')) ## please use key 'c' to grab x value
+        >>> assert f(a)[0] == 4
+    
+    unloaded: list or str
+        By defaults, if a cell is in the inputs, it will be loaded (cell.load()) prior to being presented to the function
+        If an arg is in unloaded, it will not be loaded
+
+    uncalled: list or str
+        By defaults, if a cell is in the inputs, it will be called (cell.call()) prior to being presented to the function
+        If an arg is in uncalled, it will not be called
+
+    unitemized: list or str
+        By defaults, if a cell is in the inputs, once run, we itemize and grab its data
+        If an arg is in unitemized, it will be presented 'as is'
+        :Example:
+        
+        >>> from pyg import * 
+        >>> x = cell(passthru, data = 'this is the value presented')
+        >>> assert cell_func(lambda x: len(x))(x)[0] == len('this is the value presented') ## function run on item  in x
+        >>> assert cell_func(lambda x: len(x), unitemized = 'x')(x)[0] == len(x)           ## function run on x as-is, unitemized
+    
     
     """
     def __init__(self, function = None, relabels = None, 
@@ -264,14 +299,6 @@ class cell_func(wrapper):
         res = function_(*args_, **itemized_varkw)
         called_params.update(called_varkw)
         return res, itemized_varargs, called_params
-
-        # go = kwargs.pop('go', 0)
-        # function_ = cell_item(cell_go(self.function, go))
-        # called_args = cell_go(args, go)
-        # itemized_args = cell_item(called_args, _data)
-        # called_kwargs = {k : v if k in self.uncalled else cell_go(v, go) for k, v in kwargs.items()}
-        # itemized_kwargs = {k : v if k in self.unitemized else cell_item(v, self.relabels.get(k,k)) for k, v in called_kwargs.items()}
-        # return function_(*itemized_args, **itemized_kwargs), called_args, called_kwargs
 
 
 class cell(dictattr):
@@ -375,6 +402,26 @@ class cell(dictattr):
         return self
             
     def __call__(self, go = 0, mode = 0, **kwargs):
+        """
+        1) updates the cell using kwargs
+        2) loads the data from the persistency layewr using mode policy
+        3) runs the cells using go-policy
+
+        Parameters
+        ----------
+        go : int, optional
+            execution policy for cell. The default is 0.
+        mode : int, optional
+            load policy. The default is 0.
+        **kwargs : dict
+            additional variables to be added to the cell.
+
+        Returns
+        -------
+        cell
+            the loaded & calculated cell.
+
+        """
         return (self + kwargs).load(mode = mode).go(go = go, mode = mode)
 
 
@@ -385,9 +432,27 @@ class cell(dictattr):
     @property
     def _args(self):
         """
-        returns the keyword arguments within the cell that will be presented to the cell.function
+        returns the keyword arguments within the cell that MAY be presented to the cell.function 
+        Does not 
         """
         return getargs(self.function)
+    
+    @property
+    def _inputs(self):
+        """
+        returns a dict of the keys and values in the cell that can be presented to the function
+        
+        :Example:
+        ---------
+        >>> from pyg import * 
+        >>> c = cell(lambda a, b = 1: a + b , a = 2, b = 3)
+        >>> assert c._inputs == {'a': 2, 'b': 3} and c._args == ['a', 'b']
+        >>> c = cell(lambda a, b = 1: a + b , a = 2)
+        >>> assert c._inputs == {'a': 2} and c._args == ['a', 'b']
+            
+        """
+        args = self._args
+        return {key : self[key] for key in args if key in self}
     
     
     @property
