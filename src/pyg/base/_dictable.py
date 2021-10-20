@@ -7,6 +7,7 @@ from pyg.base._tree import is_tree, tree_to_table
 from pyg.base._inspect import getargs
 from pyg.base._decorators import kwargs_support, try_none
 from pyg.base._sort import sort, cmp
+from pyg.base._encode import _encode, _obj
 from pyg.base._file import read_csv
 from functools import reduce
 import pandas as pd
@@ -360,6 +361,18 @@ class dictable(Dict):
             super(dictable, self).__delattr__(attr)
         else:
             super(dictable, self).__delitem__(attr)
+    
+    def _encode(self):
+        """
+        We override the encoding method for dictable by enforcing columns to be specified as part of the dict.
+        This ensures that when constructed from mongodb, old columns that may still be part of the cell are not included in the construction
+
+        """
+        res = {k : _encode(v) for k, v in self.items()}
+        if _obj not in res:
+            res[_obj] = _encode(type(self))
+        res['columns'] = self.columns
+        return res
 
     def inc(self, *functions, **filters):
         """
