@@ -1,9 +1,10 @@
-from pyg.base import cell, is_strs, is_date, as_tuple, ulist, logger, tree_update, cell_clear, dt
+from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list
 from pyg.mongo._q import _deleted, _id, q
 _updated = 'updated'
 _db = 'db'
 
 GRAPH = {}
+REGISTER = {}
 
 __all__ = ['db_load', 'db_save', 'db_cell', 'GRAPH']
 
@@ -68,7 +69,7 @@ def _load_asof(table, kwargs, _deleted):
             raise ValueError('no undeleted cells found matching %s'%kwargs)        
         elif len(live)>1:
             raise ValueError('multiple cells found matching %s'%kwargs)
-        return live[0]        
+        res = live[0]
     else:
         history = t.inc(q._deleted >_deleted) #cells alive at _deleted
         if len(history) == 0:
@@ -76,9 +77,11 @@ def _load_asof(table, kwargs, _deleted):
                 raise ValueError('no undeleted cells found matching %s'%kwargs)        
             elif len(live)>1:
                 raise ValueError('multiple cells found matching %s'%kwargs)
-            return live[0]
+            res = live[0]
         else:
-            return history.sort('_deleted')[0]
+            res = history.sort('_deleted')[0]
+    return res
+
 
 class db_cell(cell):
     """
@@ -160,13 +163,10 @@ class db_cell(cell):
         """
         if self.db is None:
             return None
-        if is_strs(self.db):
-            pk = as_tuple(self.db)
-            return (None, None, None, None) + (pk, tuple([self.get(k) for k in pk]))
+        elif is_strs(self.db):
+            return tuple([(key, self.get(key)) for key in as_list(self.db)])
         db = self.db()
-        pk = tuple(db.pk)
-        address = db.address  + (pk, tuple([self.get(k) for k in pk])) 
-        return address
+        return db.address + tuple([(key, self.get(key)) for key in db.pk])
 
     def _clear(self):
         if not callable(self.get(_db)): 
@@ -193,6 +193,7 @@ class db_cell(cell):
         new = doc
         GRAPH[address] = new
         return new
+                
         
     def load(self, mode = 0):
         """

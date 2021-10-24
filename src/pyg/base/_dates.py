@@ -18,7 +18,7 @@ iso = re.compile('^[0-9]{4}-[0-9]{2}-[0-9]{2}T')
 ambiguity = re.compile('^[0-9]{2}[-/ .][0-9]{2}[-/ .][0-9]{4}')
 futcodes = list('fghjkmnquvxz'.upper())
 months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-period = re.compile('^[-+]{0,1}[0-9]*[dbwmqyDBWMQY]$')
+period = re.compile('^[-+]{0,1}[0-9]*[dbwmqyhnsDBWMQYHNS]$')
 
 
 __all__ = ['dt','dt_bump', 'today', 'ymd', 'TMIN', 'TMAX', 'DAY', 'futcodes', 'dt2str', 'is_period']
@@ -251,6 +251,12 @@ def dt_bump(t, *bumps):
                 t = _ymd(t.year, t.month + 3  * int(bump[:-1]), t.day)
             elif bump.endswith('y'):
                 t = _ymd(t.year+int(bump[:-1]), t.month, t.day)
+            elif bump.endswith('h'):
+                return t + datetime.timedelta(hours = int(bump[:-1]))
+            elif bump.endswith('n'):
+                return t + datetime.timedelta(minutes = int(bump[:-1]))
+            elif bump.endswith('s'):
+                return t + datetime.timedelta(seconds = int(bump[:-1]))
             elif bump.endswith('b'):
                 bdays = int(bump[:-1])
                 wday = t.weekday()

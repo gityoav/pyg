@@ -178,7 +178,8 @@ class mongo_reader(object):
 
         """
         collection = self._cursor.collection
-        return collection.database.client.address + (collection.database.name, collection.name)
+        return ('url', '%s:%s' % collection.database.client.address), ('db', collection.database.name), ('table', collection.name)
+
     
     def clone(self, **params):
         """

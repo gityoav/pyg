@@ -3,7 +3,7 @@ from pyg.base._types import is_int, is_str, is_ts, is_arr, is_pd, is_nan
 from pyg.base._as_list import as_list 
 from pyg.base._dict import Dict
 import datetime
-from dateutil.rrule import rrule, MONTHLY, WEEKLY, DAILY, YEARLY, MO, TU, WE, TH, FR, SA, SU
+from dateutil.rrule import rrule, MONTHLY, WEEKLY, DAILY, YEARLY, HOURLY, MINUTELY, SECONDLY, MO, TU, WE, TH, FR, SA, SU
 from dateutil import tz
 from pytz import country_timezones
 from functools import lru_cache
@@ -101,6 +101,8 @@ def as_time(t = None):
     else:
         raise ValueError('cannot parse time %s'%t)
 
+_LY = dict(b = DAILY, d = DAILY, w = WEEKLY, m = MONTHLY, q = MONTHLY, y = YEARLY, h = HOURLY, n = MINUTELY, s = SECONDLY)
+
 def drange(t0 = None, t1 = None, bump = None):
     """
     A quick and happy wrapper for dateutil.rrule
@@ -171,9 +173,9 @@ def drange(t0 = None, t1 = None, bump = None):
         bump = bump.lower()
         period = bump[-1]
         interval = int(bump[:-1]) * dict(q = 3).get(period,1)
-        if (t1-t0).days * interval <= 0:
+        if (t1-t0).days * interval < 0:
             raise ValueError('cannot go from %s to %s in steps of %s'%(t0,t1,bump))
-        freq = dict(b = DAILY, d = DAILY, w = WEEKLY, m = MONTHLY, q = MONTHLY, y = YEARLY)[period]
+        freq = _LY[period]
         if period == 'b':
             res = [t for t in rrule(freq, interval = 1, dtstart = min(t0,t1), until = max(t0,t1)) if t.weekday()<5]
             res = res[::-1] if interval<0 else res    
@@ -612,6 +614,12 @@ class Calendar(Dict, _calendar):
             return [self.int2dt[i] for i in range(i0, i1+b, b)]
         else:
             return drange(t0, t1, bump)
+    
+    def filter(self, ts, day_start = None, day_end = None):
+        if day_start is None or day_end is None:
+            return ts[[self.is_bday(date) for date in ts.index]]
+        else:
+            return ts[[self.is_trading(date, day_start = day_start, day_end = day_end) for date in ts.index]]
 
         
 def calendar(key = None, holidays = None, weekend = None, t0 = None, t1 = None):

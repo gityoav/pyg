@@ -1,4 +1,4 @@
-from pyg import drange, Calendar, calendar, clock, dt, date_range, DAY, timer, eq, as_time, TMIN, TMAX
+from pyg import drange, Calendar, calendar, clock, dt, date_range, DAY, timer, eq, as_time, TMIN, TMAX, dt_bump
 import datetime
 import pandas as pd; import numpy as np
 import pytest
@@ -31,6 +31,20 @@ def test_calendar_weekend():
     assert not isr.is_bday(friday)
 
 
+def test_drange_intraday():
+    assert drange(dt(2000), dt_bump(2000, '35h'), '7h') == [datetime.datetime(2000, 1, 1, 0, 0),
+                                                             datetime.datetime(2000, 1, 1, 7, 0),
+                                                             datetime.datetime(2000, 1, 1, 14, 0),
+                                                             datetime.datetime(2000, 1, 1, 21, 0),
+                                                             datetime.datetime(2000, 1, 2, 4, 0),
+                                                             datetime.datetime(2000, 1, 2, 11, 0)]
+
+    assert drange(dt(2000), dt_bump(2000, '35n'), '7n') == [datetime.datetime(2000, 1, 1, 0, 0),
+                                                             datetime.datetime(2000, 1, 1, 0, 7),
+                                                             datetime.datetime(2000, 1, 1, 0, 14),
+                                                             datetime.datetime(2000, 1, 1, 0, 21),
+                                                             datetime.datetime(2000, 1, 1, 0, 28),
+                                                             datetime.datetime(2000, 1, 1, 0, 35)]
 
 
 def test_drange_simple():
@@ -237,4 +251,12 @@ def test_calendar_modified_adj():
     assert cal.drange(2000,20,1) == drange(2000,20,1)
     assert cal.drange(2000,20,'1b') == drange(2000,20,'1b')
 
-    
+def test_calendar_filter():
+    cal = calendar()
+    dts = pd.Series(drange(-1000, dt(1999)), drange(-1000, dt(1999)))
+    bts = pd.Series(cal.drange(-1000, dt(1999), '1b'), cal.drange(-1000, dt(1999), '1b'))
+    assert eq(cal.filter(dts), bts)
+    assert len(cal.filter(bts)) == len(bts)
+
+
+

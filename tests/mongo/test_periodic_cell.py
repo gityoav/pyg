@@ -1,4 +1,4 @@
-from pyg import periodic_cell, periodic_cache, dt
+from pyg import periodic_cell, dt
 
 def test_periodic_cell():
      c = periodic_cell(lambda a: a + 1, a = 0) 

@@ -98,8 +98,8 @@ def test_db_cell_clear():
     assert cell_clear(5) == 5
     
     assert db_cell(5) == db_cell(5, db = None)
-    assert a._address == ('localhost', 27017, 'temp', 'temp', ('key',), ('a',))
-    assert db_cell(lambda a, b: a+b, a = 1, b = 2, key = 'a', db = 'key')._address == (None, None, None, None, ('key',), ('a',))
+    assert a._address == (('url', 'localhost:27017'), ('db', 'temp'), ('table', 'temp'), ('key', 'a'))
+    assert db_cell(lambda a, b: a+b, a = 1, b = 2, key = 'a', db = 'key')._address == (('key', 'a'),)
 
 
 def test_db_cell_clear_mix():

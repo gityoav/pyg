@@ -1,7 +1,7 @@
 import numpy as np
 from pyg.timeseries._math import stdev_calculation, skew_calculation
 from pyg.timeseries._decorators import compiled, first_, _data_state
-from pyg.base import pd2np, Dict, is_num, loop_all, loop
+from pyg.base import pd2np, Dict, is_num, loop_all, loop, clock
 
 __all__ = ['ffill', 'bfill', 'fnna', 'na2v', 'v2na', 'diff', 'shift', 'ratio', 'rolling_mean', 'rolling_sum', 'rolling_rms', 'rolling_std', 'rolling_skew', 
            'diff_', 'shift_', 'ratio_', 'rolling_mean_', 'rolling_sum_', 'rolling_rms_', 'rolling_std_', 'rolling_skew_']
@@ -35,6 +35,7 @@ def _fnna(a, n):
             if i == _n:
                 return j
             
+
 @loop_all
 @pd2np
 @compiled
@@ -232,10 +233,9 @@ def _shift1(a, vec):
 ###############
 
 
-@loop_all
 @pd2np
 @compiled
-def _rolling_mean(a, n, t0, t1, vec, i, denom):
+def _rolling_mean(a, n, time, t0, t1, vec, i, denom, t = np.nan):
     vec = vec.copy()
     res = np.empty_like(a)
     _n = abs(n)
@@ -244,17 +244,25 @@ def _rolling_mean(a, n, t0, t1, vec, i, denom):
         if np.isnan(a[j]):
             res[j] = np.nan
         else:
-            t0 +=1
+            if not (time[j] == t):
+                i = (i+1) % _n
+                t0 +=1
             t1 += a[j]-vec[i]
             vec[i] = a[j]
-            i = (i+1) % _n
             res[j] = np.nan if t0<n else t1/denom
-    return res, t0, t1, vec, i
+            t = time[j]
+    return res, t0, t1, vec, i, t
+
 
 @loop_all
+def _trolling_mean(a, n, t0, t1, vec, i, denom, t = np.nan, time = None):
+    time = clock(a, time, t)
+    return _rolling_mean(a, n, time = time, t = t, t0 = t0, t1 = t1, vec = vec, i = i, denom = denom)
+
+
 @pd2np
 @compiled
-def _rolling_rms(a, n, t0, t2, vec, i, denom):
+def _rolling_rms(a, n, time, t0, t2, vec, i, denom, t = np.nan):
     vec = vec.copy()
     res = np.empty_like(a)
     _n = abs(n)
@@ -263,17 +271,23 @@ def _rolling_rms(a, n, t0, t2, vec, i, denom):
         if np.isnan(a[j]):
             res[j] = np.nan
         else:
-            t0 +=1
+            if not (time[j] == t):
+                i = (i+1) % _n
+                t0 +=1
             t2 += a[j]**2-vec[i]**2
             vec[i] = a[j]
-            i = (i+1) % _n
             res[j] = np.nan if t0<n else np.sqrt(t2/denom)
-    return res, t0, t2, vec, i
+            t = time[j]
+    return res, t0, t2, vec, i, t
 
 @loop_all
+def _trolling_rms(a, n, t0, t2, vec, i, denom, t = np.nan, time = None):
+    time = clock(a, time, t)
+    return _rolling_rms(a, n, time = time, t = t, t0 = t0, t2 = t2, vec = vec, i = i, denom = denom)
+
 @pd2np
 @compiled
-def _rolling_std(a, n, t0, t1, t2, vec, i, denom):
+def _rolling_std(a, n, time, t0, t1, t2, vec, i, denom, t = np.nan):
     vec = vec.copy()
     res = np.empty_like(a)
     _n = abs(n)
@@ -282,18 +296,25 @@ def _rolling_std(a, n, t0, t1, t2, vec, i, denom):
         if np.isnan(a[j]):
             res[j] = np.nan
         else:
-            t0 +=1
+            if not (time[j] == t):
+                i = (i+1) % _n
+                t0 +=1
             t1 += a[j]-vec[i]
             t2 += a[j]**2-vec[i]**2
             vec[i] = a[j]
-            i = (i+1) % _n
             res[j] = np.nan if t0<n else stdev_calculation(t0 = n, t1 = t1, t2 = t2)
-    return res, t0, t1, t2, vec, i
+            t = time[j]
+    return res, t0, t1, t2, vec, i, t
 
 @loop_all
+def _trolling_std(a, n, t0, t1, t2, vec, i, denom, t = np.nan, time = None):
+    time = clock(a, time, t)
+    return _rolling_std(a, n, time = time, t = t, t0 = t0, t1 = t1, t2 = t2, vec = vec, i = i, denom = denom)
+
+
 @pd2np
 @compiled
-def _rolling_skew(a, n, bias, t0, t1, t2, t3, vec, i, denom):
+def _rolling_skew(a, n, time, bias, t0, t1, t2, t3, vec, i, denom, t = np.nan):
     vec = vec.copy()
     res = np.empty_like(a)
     _n = abs(n)
@@ -302,14 +323,22 @@ def _rolling_skew(a, n, bias, t0, t1, t2, t3, vec, i, denom):
         if np.isnan(a[j]):
             res[j] = np.nan
         else:
-            t0 +=1
+            if not (time[j] == t):
+                i = (i+1) % _n
+                t0 +=1
             t1 += a[j]-vec[i]
             t2 += a[j]**2-vec[i]**2
             t3 += a[j]**3-vec[i]**3
             vec[i] = a[j]
-            i = (i+1) % _n
             res[j] = np.nan if t0<_n else skew_calculation(t0 = _n, t1 = t1, t2 = t2, t3 = t3, bias = bias, min_sample = 1)
-    return res, t0, t1, t2, t3, vec, i
+            t = time[j]
+    return res, t0, t1, t2, t3, vec, i, t
+
+
+@loop_all
+def _trolling_skew(a, n, t0, t1, t2, t3, vec, i, denom, bias = False, t = np.nan, time = None):
+    time = clock(a, time, t)
+    return _rolling_skew(a, n = n, time = time, bias = bias, t = t, t0 = t0, t1 = t1, t2 = t2, t3 = t3, vec = vec, i = i, denom = denom)
 
 
 ###############
@@ -617,7 +646,7 @@ def ratio_(a, n=1, data = None, instate = None):
 ratio_.output = ['data', 'state']
 
 
-def rolling_mean(a, n, axis = 0, data = None, state = None):
+def rolling_mean(a, n, time = None, axis = 0, data = None, state = None):
     """
     equivalent to pandas a.rolling(n).mean().
     
@@ -673,11 +702,11 @@ def rolling_mean(a, n, axis = 0, data = None, state = None):
     >>> assert eq(rolling_mean([a,a**2],10), [rolling_mean(a,10), rolling_mean(a**2,10)])
 
     """
-    state = state or Dict(t0 = 0, t1 = 0., vec = None, i = 0, )
+    state = state or Dict(t0 = 0, t1 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return first_(_rolling_mean(a, n, denom = n, axis = axis, **state))
+    return first_(_trolling_mean(a, n, time = time, denom = n, axis = axis, **state))
 
-def rolling_rms(a, n, axis = 0, data = None, state = None):
+def rolling_rms(a, n, time = None, axis = 0, data = None, state = None):
     """
     equivalent to pandas (a**2).rolling(n).mean()**0.5.
     
@@ -733,11 +762,11 @@ def rolling_rms(a, n, axis = 0, data = None, state = None):
     >>> assert eq(rolling_rms([a,a**2],10), [rolling_rms(a,10), rolling_rms(a**2,10)])
 
     """
-    state = state or Dict(t0 = 0, t2 = 0., vec = None, i = 0, )
+    state = state or Dict(t0 = 0, t2 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return first_(_rolling_rms(a, n, denom = n, axis = axis, **state))
+    return first_(_trolling_rms(a, n, time = time, denom = n, axis = axis, **state))
 
-def rolling_sum(a, n, axis = 0, data = None, state = None):
+def rolling_sum(a, n, time = None, axis = 0, data = None, state = None):
     """
     equivalent to pandas a.rolling(n).sum().
     
@@ -792,11 +821,11 @@ def rolling_sum(a, n, axis = 0, data = None, state = None):
     >>> assert eq(rolling_sum(dict(x = a, y = a**2),10), dict(x = rolling_sum(a,10), y = rolling_sum(a**2,10)))
     >>> assert eq(rolling_sum([a,a**2],10), [rolling_sum(a,10), rolling_sum(a**2,10)])
     """
-    state = state or Dict(t0 = 0, t1 = 0., vec = None, i = 0, )
+    state = state or Dict(t0 = 0, t1 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return first_(_rolling_mean(a, n, denom = 1, axis = axis, **state))
+    return first_(_trolling_mean(a, n, time = time, denom = 1, axis = axis, **state))
 
-def rolling_std(a, n, axis = 0, data = None, state = None):
+def rolling_std(a, n, time = None, axis = 0, data = None, state = None):
     """
     equivalent to pandas a.rolling(n).std().
     
@@ -851,11 +880,11 @@ def rolling_std(a, n, axis = 0, data = None, state = None):
     >>> assert eq(rolling_std(dict(x = a, y = a**2),10), dict(x = rolling_std(a,10), y = rolling_std(a**2,10)))
     >>> assert eq(rolling_std([a,a**2],10), [rolling_std(a,10), rolling_std(a**2,10)])
     """    
-    state = state or Dict(t0 = 0, t1 = 0, t2 = 0., vec = None, i = 0)
+    state = state or Dict(t0 = 0, t1 = 0, t2 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return first_(_rolling_std(a, n, denom = n, axis = axis, **state))
+    return first_(_trolling_std(a, n, time = time, denom = n, axis = axis, **state))
 
-def rolling_skew(a, n, bias = False, axis = 0, data = None, state = None):
+def rolling_skew(a, n, bias = False, time = None, axis = 0, data = None, state = None):
     """
     equivalent to pandas a.rolling(n).skew().
     
@@ -912,63 +941,63 @@ def rolling_skew(a, n, bias = False, axis = 0, data = None, state = None):
     >>> assert eq(rolling_skew(dict(x = a, y = a**2),10), dict(x = rolling_skew(a,10), y = rolling_skew(a**2,10)))
     >>> assert eq(rolling_skew([a,a**2],10), [rolling_skew(a,10), rolling_skew(a**2,10)])
     """
-    state = state or Dict(t0 = 0, t1 = 0, t2 = 0., t3 = 0, vec = None, i = 0)
+    state = state or Dict(t0 = 0, t1 = 0, t2 = 0., t3 = 0, vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return first_(_rolling_skew(a, n, bias = bias, denom = n, axis = axis, **state))
+    return first_(_trolling_skew(a, n, time = time, bias = bias, denom = n, axis = axis, **state))
 
 
-def rolling_mean_(a, n, axis = 0, data = None, instate = None):
+def rolling_mean_(a, n, time = None, axis = 0, data = None, instate = None):
     """
     Equivalent to rolling_mean(a) but returns also the state variables t0,t1 etc. 
     For full documentation, look at rolling_mean.__doc__
     """
-    state = instate or Dict(t0 = 0, t1 = 0., vec = None, i = 0)
+    state = instate or Dict(t0 = 0, t1 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return _data_state(['data','t0','t1', 'vec','i'],_rolling_mean(a, n, denom = n, axis = axis, **state))
+    return _data_state(['data','t0','t1', 'vec','i', 't'],_trolling_mean(a, n, time = time, denom = n, axis = axis, **state))
 
 rolling_mean_.output = ['data','state']
 
-def rolling_rms_(a, n, axis = 0, data = None, instate = None):
+def rolling_rms_(a, n, time = None, axis = 0, data = None, instate = None):
     """
     Equivalent to rolling_rms(a) but returns also the state variables t0,t1 etc. 
     For full documentation, look at rolling_rms.__doc__
     """
-    state = instate or Dict(t0 = 0, t2 = 0., vec = None, i = 0, )
+    state = instate or Dict(t0 = 0, t2 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return _data_state(['data','t0','t2', 'vec','i'],_rolling_rms(a, n, denom = n, axis = axis, **state))
+    return _data_state(['data','t0','t2', 'vec','i', 't'],_trolling_rms(a, n, time = time, denom = n, axis = axis, **state))
 
 rolling_rms_.output = ['data','state']
 
-def rolling_sum_(a, n, axis = 0, data = None, instate = None):
+def rolling_sum_(a, n, time = None, axis = 0, data = None, instate = None):
     """
     Equivalent to rolling_sum(a) but returns also the state variables t0,t1 etc. 
     For full documentation, look at rolling_sum.__doc__
     """
-    state = instate or Dict(t0 = 0, t1 = 0., vec = None, i = 0, )
+    state = instate or Dict(t0 = 0, t1 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return _data_state(['data','t0','t1', 'vec','i'], _rolling_mean(a, n, denom = 1, axis = axis, **state))
+    return _data_state(['data','t0','t1', 'vec','i', 't'], _trolling_mean(a, n, denom = 1, axis = axis, **state))
 
 rolling_sum_.output = ['data','state']
 
-def rolling_std_(a, n, axis = 0, data = None, instate = None):
+def rolling_std_(a, n, time = None, axis = 0, data = None, instate = None):
     """
     Equivalent to rolling_std(a) but returns also the state variables t0,t1 etc. 
     For full documentation, look at rolling_std.__doc__
     """
-    state = instate or Dict(t0 = 0, t1 = 0, t2 = 0., vec = None, i = 0, )
+    state = instate or Dict(t0 = 0, t1 = 0, t2 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return _data_state(['data','t0', 't1', 't2', 'vec','i'],_rolling_std(a, n, denom = n, axis = axis, **state))
+    return _data_state(['data','t0', 't1', 't2', 'vec', 'i', 't'],_trolling_std(a, n, time = time, denom = n, axis = axis, **state))
 
 
 rolling_std_.output = ['data','state']
 
-def rolling_skew_(a, n, bias = False, axis = 0, data = None, instate = None):
+def rolling_skew_(a, n, time = None, bias = False, axis = 0, data = None, instate = None):
     """
     Equivalent to rolling_skew(a) but returns also the state variables t0,t1 etc. 
     For full documentation, look at rolling_skew.__doc__
     """
-    state = instate or Dict(t0 = 0, t1 = 0, t2 = 0., t3 = 0, vec = None, i = 0)
+    state = instate or Dict(t0 = 0, t1 = 0, t2 = 0., t3 = 0, vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
-    return _data_state(['data','t0', 't1', 't2', 't3', 'vec','i'],_rolling_skew(a, n, bias = bias, denom = n, axis = axis, **state))
+    return _data_state(['data','t0', 't1', 't2', 't3', 'vec','i', 't'], _trolling_skew(a, n, time = time, bias = bias, denom = n, axis = axis, **state))
 
 rolling_skew_.output = ['data','state']

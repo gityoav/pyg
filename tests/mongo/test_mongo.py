@@ -75,9 +75,11 @@ def test_mongo_table_mode():
     w = mongo_table('test', 'test', mode = mongo_cursor)
     assert isinstance(w, mongo_cursor)
 
+    mongo_table('test', 'test', pk = 'key', mode = mongo_pk_reader)
     with pytest.raises(TypeError):
-        mongo_table('test', 'test', mode = mongo_pk_reader)
-
+        db =  table = 'test'; mode = mongo_pk_reader
+        mongo_table(table, db, mode = mode)
+    
     with pytest.raises(TypeError):
         mongo_table('test', 'test', mode = mongo_pk_cursor)
 

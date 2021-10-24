@@ -1,6 +1,5 @@
 from pyg.base._as_float import as_float
 from pyg.base._as_list import as_list, as_tuple, first, last, passthru, unique, is_rng
-from pyg.base._as_primitive import as_primitive
 from pyg.base._cell import cell, cell_go, cell_item, cell_func, cell_load, cell_output, cell_clear
 from pyg.base._dates import dt,dt_bump, today, ymd, TMIN, TMAX, DAY, futcodes, dt2str, is_bump
 from pyg.base._decorators import kwargs_support, wrapper, try_value, try_back, try_nan, try_none, try_zero, try_false, try_true, try_list, timer
@@ -8,7 +7,7 @@ from pyg.base._dict import Dict, items_to_tree, tree_items, tree_keys, tree_valu
 from pyg.base._dictattr import dictattr, relabel
 from pyg.base._dictable import dictable, dict_concat, is_dictable
 from pyg.base._drange import date_range, drange, calendar, Calendar, clock, as_time
-from pyg.base._encode import encode, decode, bson2pd, pd2bson
+from pyg.base._encode import encode, decode, bson2pd, pd2bson, as_primitive
 from pyg.base._eq import eq, in_
 from pyg.base._file import path_name, path_dirname, path_join, mkdir, read_csv
 from pyg.base._getitem import getitem, callitem, callattr

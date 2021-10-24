@@ -1,17 +1,19 @@
 from pyg.base import cell_item
+from pyg.base._cell import is_pairs
 from pyg.mongo._table import mongo_table
-from pyg.mongo._q import q
-from pyg.mongo._db_cell import _load_asof
+from pyg.mongo._db_cell import _load_asof, GRAPH
+
 
 
 def get_cell(table, db, url = None, _deleted = None, **kwargs):
     """
     retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using _deleted.
+    It is important to note that this DOES NOT go through the cache mechanism but goes to the database directly every time.
 
     :Parameters:
     ----------
     table : str
-        name of table (Mongo collection).
+        name of table (Mongo collection). alternatively, you can just provide an address
     db : str
         name of database.
     url : TYPE, optional
@@ -35,8 +37,19 @@ def get_cell(table, db, url = None, _deleted = None, **kwargs):
     >>> assert get_cell('test','test', surname = 'brown').name == 'bob'
         
     """
+    if is_pairs(table):
+        params = dict(table)
+        params.update({key: value for key, value in dict(db = db, url = url, _deleted = _deleted).items() if value is not None})
+        params.update(kwargs)
+        return get_cell(**params)
+    
     t = mongo_table(db = db, table = table, url = url)
+    # if _deleted is None:
+    #     address = t.address + tuple(sorted(kwargs.items()))
+    #     if address in GRAPH:
+    #         return GRAPH[address]
     return _load_asof(t, kwargs, _deleted)
+    
 
 def get_data(table, db, url = None, _deleted = None, **kwargs):
     """

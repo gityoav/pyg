@@ -300,6 +300,20 @@ class cell_func(wrapper):
         called_params.update(called_varkw)
         return res, itemized_varargs, called_params
 
+def is_pairs(pairs):
+    """
+    returns a check if the data is pairs of key-value tuples
+
+    :Parameters:
+    ------------
+    pairs : tuple
+        tuples of key-value tuples.
+
+    :Returns:
+    ---------
+    bool
+    """
+    return isinstance(pairs, tuple) and min([isinstance(item, tuple) and len(item) == 2 for item in pairs], default= False)
 
 class cell(dictattr):
     """
@@ -386,6 +400,23 @@ class cell(dictattr):
         -------
         cell
             self, saved.
+
+        """
+        return self
+    
+    def register(self, inputs = None):
+        """
+        registers the cell so that it calculates when the inputs of the cells are calculated
+
+        Parameters
+        ----------
+        *inputs : strs
+            list of inputs
+
+        Returns
+        -------
+        cell
+            self.
 
         """
         return self
@@ -497,9 +528,9 @@ class cell(dictattr):
         elif go!=0 or self.run():
             if hasattr(self, '_address'):
                 address = self._address
-                if isinstance(address, tuple) and len(address) == 6:
-                    pairs = ', '.join([("%s = '%s'" if isinstance(value, str) else "%s = %s")%(key, value) for key, value in zip(address[-2], address[-1])])
-                    msg = "get_cell(db = '%s', table = '%s', %s)()"%(address[2], address[3], pairs)
+                if is_pairs(address):
+                    pairs = ', '.join([("%s = '%s'" if isinstance(value, str) else "%s = %s")%(key, value) for key, value in address])
+                    msg = "get_cell(%s)()"%pairs
                 else:
                     msg = str(address)
                 logger.info(msg)
