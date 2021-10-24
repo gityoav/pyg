@@ -72,13 +72,13 @@ def test_ts_rolling_mean_with_time():
     a = np.arange(10) * 1.
     n = 2
     time = np.array([1,1,2,2,3,3,4,4,5,5.])
-    raw = 2*rolling_mean(a, n)
+    raw = rolling_mean(a, n)
     timed = 2*rolling_mean(a, n, time = time)
     assert eq(raw, np.array([np.nan, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]))
     assert eq(timed, np.array([np.nan, np.nan, 1+2, 1+3 , 3+4, 3+5. , 5+6, 5+7 , 7+8, 7+9]))
     timed = rolling_sum(a, n, time = time)
     assert eq(timed, np.array([np.nan, np.nan, 1+2, 1+3 , 3+4, 3+5. , 5+6, 5+7 , 7+8, 7+9]))
     timed = rolling_std(a, n, time = time) ** 2
-    assert eq(timed, np.array([np.nan, np.nan, 0.5, 2. , 0.5, 2. , 0.5, 2. , 0.5, 2. ]))
+    assert np.max(np.abs(timed - np.array([np.nan, np.nan, 0.5, 2. , 0.5, 2. , 0.5, 2. , 0.5, 2. ]))[2:]) < 1e-10
     timed = 2 * (rolling_rms(a, n, time = time) ** 2)
     assert np.max(np.abs((timed - np.array([ np.nan,  np.nan,   1+4,  1+9.,  9+16.,  9+25.,  25+36.,  25+49., 49+64., 49+81.]))[2:])) < 1e-10

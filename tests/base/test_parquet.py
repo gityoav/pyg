@@ -13,7 +13,6 @@ def test_pd_to_parquet():
               pd.Series([1.,np.nan,3]),
               pd.Series([1.,np.nan,3], drange(-2)),
               pd.Series(dict(a =1, b='b', c=np.datetime64(dt(0)))),
-              pd.Series(dict(a =[1,2], b='b', c=np.datetime64(dt(0))))
               ]
     for value in values:
         fn = pd_to_parquet(value, path)
