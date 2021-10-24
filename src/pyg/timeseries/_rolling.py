@@ -660,6 +660,8 @@ def rolling_mean(a, n, time = None, axis = 0, data = None, state = None):
         timeseries
     n: int
         size of rolling window
+    time: a sequence of rising values of time
+        passage of time
     axis : int, optional
         0/1/-1. The default is 0.    
     data: None.
@@ -701,6 +703,17 @@ def rolling_mean(a, n, time = None, axis = 0, data = None, state = None):
     >>> assert eq(rolling_mean(dict(x = a, y = a**2),10), dict(x = rolling_mean(a,10), y = rolling_mean(a**2,10)))
     >>> assert eq(rolling_mean([a,a**2],10), [rolling_mean(a,10), rolling_mean(a**2,10)])
 
+    :Example: passage of time
+    --------------------------
+    >>> a = np.array([1.,2.,3.,4.])
+    >>> time = np.array([0,0,1,1]) ## i.e. the first two observations are from day 0 and the next two are from day 1
+    >>> rolling_mean(a,2,time)
+    >>> array([nan, nan, 2.5, 3. ])  
+    
+    ## The first two observations are from day 0 so cannot have a mean until we get a second point
+    ## The mean is then calculated from last observation in day 0 (i.e. 2) and then 3. and then with 4. since these are again, from same day
+            
+
     """
     state = state or Dict(t0 = 0, t1 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
@@ -720,6 +733,8 @@ def rolling_rms(a, n, time = None, axis = 0, data = None, state = None):
         timeseries
     n: int
         size of rolling window
+    time: a sequence of rising values of time
+        passage of time
     axis : int, optional
         0/1/-1. The default is 0.    
     data: None.
@@ -761,6 +776,17 @@ def rolling_rms(a, n, time = None, axis = 0, data = None, state = None):
     >>> assert eq(rolling_rms(dict(x = a, y = a**2),10), dict(x = rolling_rms(a,10), y = rolling_rms(a**2,10)))
     >>> assert eq(rolling_rms([a,a**2],10), [rolling_rms(a,10), rolling_rms(a**2,10)])
 
+    :Example: passage of time
+    --------------------------
+    >>> a = np.array([1.,2.,3.,4.])
+    >>> time = np.array([0,0,1,1]) ## i.e. the first two observations are from day 0 and the next two are from day 1
+    >>> (rolling_rms(a,2,time) ** 2) * 2
+    >>> array([nan, nan, 13., 20.])   == array([nan, nan, 4 + 9, 4 + 16])
+    
+    ## The first two observations are from day 0 so cannot have a mean until we get a second point
+    ## The rms is then calculated from last observation in day 0 (i.e. 2) and then 3. and then with 4. since these are again, from same day
+            
+
     """
     state = state or Dict(t0 = 0, t2 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
@@ -780,6 +806,8 @@ def rolling_sum(a, n, time = None, axis = 0, data = None, state = None):
         timeseries
     n: int
         size of rolling window
+    time: a sequence of rising values of time
+        passage of time
     axis : int, optional
         0/1/-1. The default is 0.    
     data: None.
@@ -820,6 +848,16 @@ def rolling_sum(a, n, time = None, axis = 0, data = None, state = None):
     ---------------------------
     >>> assert eq(rolling_sum(dict(x = a, y = a**2),10), dict(x = rolling_sum(a,10), y = rolling_sum(a**2,10)))
     >>> assert eq(rolling_sum([a,a**2],10), [rolling_sum(a,10), rolling_sum(a**2,10)])
+
+    :Example: passage of time
+    --------------------------
+    >>> a = np.array([1.,2.,3.,4.])
+    >>> time = np.array([0,0,1,1]) ## i.e. the first two observations are from day 0 and the next two are from day 1
+    >>> rolling_sum(a,2,time) 
+    >>> array([nan, nan, 5., 6.])   == array([nan, nan, 2+3, 2+4])
+    
+    ## The first two observations are from day 0 so cannot have a mean until we get a second point
+    ## The sum is then calculated from last observation in day 0 (i.e. 2) and then 3. and then with 4. since these are again, from same day
     """
     state = state or Dict(t0 = 0, t1 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
@@ -839,6 +877,8 @@ def rolling_std(a, n, time = None, axis = 0, data = None, state = None):
         timeseries
     n: int
         size of rolling window
+    time: a sequence of rising values of time
+        passage of time
     axis : int, optional
         0/1/-1. The default is 0.    
     data: None.
@@ -879,6 +919,16 @@ def rolling_std(a, n, time = None, axis = 0, data = None, state = None):
     ---------------------------
     >>> assert eq(rolling_std(dict(x = a, y = a**2),10), dict(x = rolling_std(a,10), y = rolling_std(a**2,10)))
     >>> assert eq(rolling_std([a,a**2],10), [rolling_std(a,10), rolling_std(a**2,10)])
+
+    :Example: passage of time
+    --------------------------
+    >>> a = np.array([1.,2.,3.,4.])
+    >>> time = np.array([0,0,1,1]) ## i.e. the first two observations are from day 0 and the next two are from day 1
+    >>> 2*(rolling_std(a,2,time) ** 2)
+    >>> array([nan, nan, 1., 4.])
+    
+    ## The first two observations are from day 0 so cannot have a mean until we get a second point
+    ## The sum is then calculated from last observation in day 0 (i.e. 2) and then 3. and then with 4. since these are again, from same day
     """    
     state = state or Dict(t0 = 0, t1 = 0, t2 = 0., vec = None, i = 0, t = np.nan)
     state.vec = _vec(state.vec, n, 0.)
@@ -898,6 +948,8 @@ def rolling_skew(a, n, bias = False, time = None, axis = 0, data = None, state =
         timeseries
     n: int
         size of rolling window
+    time: a sequence of rising values of time
+        passage of time
     bias: 
         affects the skew calculation definition, see scipy documentation for details.
     axis : int, optional
