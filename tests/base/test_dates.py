@@ -1,5 +1,5 @@
 from pyg import dt, dt_bump, drange, dt,dt_bump, today, ymd, TMIN, TMAX, DAY, futcodes, dt2str, eq
-from pyg.base._dates import is_period, ym, month, uk2dt, us2dt
+from pyg.base._dates import none2dt, is_period, ym, month, uk2dt, us2dt
 import datetime
 import pytest
 import dateutil as du
@@ -20,6 +20,26 @@ def test_month():
     with pytest.raises(ValueError):
         month(dict(a = 1))
 
+
+def test_none2dt():
+    now = dt()
+    assert none2dt() >= now
+    assert none2dt(lambda : dt(0)) == dt(0)
+    assert none2dt(0) == 0
+    
+    
+def test_dt_date():
+    t = datetime.date(2010,1,1)
+    assert dt(t) == datetime.datetime(2010,1,1)
+    
+    
+def test_dt_bump():
+    for bmp in ['1d', '1m', '-3w', '4b', '1h', '2n', '6s']:
+        assert dt(bmp) == dt_bump(0, bmp)
+        
+def test_dt2str_empty():
+    assert dt2str(dt(2010,2,3), '') == '20100203'
+    
 def test_dt_utc():
     t = dt()
     timestamp = t.timestamp()

@@ -1,4 +1,5 @@
 from pyg import mongo_table, dictable, Dict
+from pyg import * 
 import pytest
 
 def test_mongo_cursor():

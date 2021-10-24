@@ -406,6 +406,26 @@ def df_concat(objs, columns = None, axis=1, join = 'outer'):
 
 @loop(list, dict, tuple)
 def df_column(ts, column, i = None, n = None):
+    """
+    This is mostly a helper function to help us loop through multiple columns.
+    Function grabs a column from a dataframe/2d array
+
+    :Parameters:
+    ----------
+    ts : datafrane
+        the original dataframe or 2-d numpy array
+    column : str
+        name of the column to grab.
+    i : int, optional
+        Can grab the column using its index. The default is None.
+    n : int, optional
+        asserting the number of columns, ts.shape[1]. The default is None.
+
+    :Returns:
+    -------
+    a series or a 1-d numpy array
+    """
+    
     if is_df(ts):
         if ts.shape[1] == 1:
             return ts[ts.columns[0]]

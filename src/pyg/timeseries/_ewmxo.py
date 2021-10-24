@@ -10,6 +10,7 @@ def _frac(days):
 def ou_factor(fast, slow):
     """
     OU factor for momentum predictions.
+    Calculatates the variance of an OU process defined as ewma(dB, fast) - ewma(dB, slow) if dB is a standard Brownian Motion
     
     Suppose 
 
@@ -40,15 +41,16 @@ def ou_factor(fast, slow):
 
     Parameters
     ----------
-    fast : TYPE
-        DESCRIPTION.
-    slow : TYPE
-        DESCRIPTION.
+    fast : int/frac
+        number of days. can also be 1/(1+days) if presented as a fraction
+
+    slow : int/frc
+        number of days. can also be 1/(1+days) if presented as a fraction
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    float
+        The variance of an OU process defined as ewma(dB, fast) - ewma(dB, slow) if dB is a standard Brownian Motion
 
     """
     f = _frac(fast); F = 1-f; F2 = F**2
@@ -59,7 +61,28 @@ def ou_factor(fast, slow):
 def ewmxo_(rtn, fast, slow, vol = None, instate = None):
     """
     This is the normalized crossover function
+
+    >>> res = (ewma(rtn, fast) - ewma(rtn, slow)) / (ewmstd(rtn, vol) * ou_factor(fast, slow))
     
+    The OU factor normalizes the result so that rms(res) is approximately 1
+
+    Parameters
+    ----------
+    rtn:  timeseries
+        The returns of a financial process
+    
+    fast : int/frac
+        number of days. can also be 1/(1+days) if presented as a fraction
+
+    slow : int/frc
+        number of days. can also be 1/(1+days) if presented as a fraction
+
+    vol: int/frc
+        number of days. used for calculating the volatility horizon
+        
+    
+    :Example:
+    ---------
     >>> import numpy as np; import pandas as pd; from pyg import * 
     >>> rtn = pd.Series(np.random.normal(0,1,10000),drange(-9999,0))
     >>> fast = 64; slow = 192; vol = 32; instate = None
@@ -82,12 +105,31 @@ ewmxo_.output = ['data', 'state']
 def ewmxo(rtn, fast, slow, vol = None, instate = None):
     """
     This is the normalized crossover function
+
+    >>> res = (ewma(rtn, fast) - ewma(rtn, slow)) / (ewmstd(rtn, vol) * ou_factor(fast, slow))
     
+    The OU factor normalizes the result so that rms(res) is approximately 1
+
+    Parameters
+    ----------
+    rtn:  timeseries
+        The returns of a financial process
+    
+    fast : int/frac
+        number of days. can also be 1/(1+days) if presented as a fraction
+
+    slow : int/frc
+        number of days. can also be 1/(1+days) if presented as a fraction
+
+    vol: int/frc
+        number of days. used for calculating the volatility horizon
+        
+    
+    :Example:
+    ---------
     >>> import numpy as np; import pandas as pd; from pyg import * 
     >>> rtn = pd.Series(np.random.normal(0,1,10000),drange(-9999,0))
-    >>> fast = 64; slow = 192; vol = 32; instate = None
-    >>> ewmxo(rtn, fast, slow, vol).plot()
-    
+    >>> fast = 64; slow = 192; vol = 32; instate = None    
     """
     return ewmxo_(rtn, fast, slow, vol, instate).data
 

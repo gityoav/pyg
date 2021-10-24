@@ -1,4 +1,4 @@
-from pyg import cell, cell_func, dictattr, dt
+from pyg import cell, cell_func, dictattr, dt, getargspec
 from pyg.base._cell import cell_output, cell_item
 import pytest
 
@@ -33,6 +33,10 @@ def test_cell_of_cell():
     self = cell(lambda a,b:a+b, a = a, b=b)
     assert self.go().data == 3
 
+
+def test_cell_fullargspec():
+    function = lambda a, b = 1, **some_params: 1
+    assert cell(function).fullargspec == getargspec(function)
 
 def test_cell_func_cell():
     f = cell_func(lambda a, b: a+b, unitemized = ['a', 'b'])
@@ -69,6 +73,8 @@ def test_cell_output():
     assert cell_output(c) == ['a', 'b']
     c.function = lambda a: a
     assert cell_output(c) == ['data']
+    
+    
     
 def test_cell_item():
     d = dict(a = 1)

@@ -4,7 +4,7 @@ from pyg.timeseries._decorators import compiled, first_, _data_state
 from pyg.timeseries._index import presync
 from pyg.base import pd2np, clock, loop_all, loop, is_pd, is_df
 
-__all__ = ['ewma', 'ewmstd', 'ewmvar', 'ewmskew', 'ewmrms',  'ewmcor', 'ewmLR', 'ewmGLM',
+__all__ = ['ewma', 'ewmstd', 'ewmvar', 'ewmskew', 'ewmrms',  'ewmcor',  'ewmcorr', 'ewmLR', 'ewmGLM',
            'ewma_', 'ewmstd_', 'ewmskew_', 'ewmrms_', 'ewmcor_', 'ewmvar_','ewmLR_', 'ewmGLM_',]
 
 ############################################
@@ -361,10 +361,12 @@ def ewmcorr(a, n, min_sample = 0.25, bias = False, instate = None):
     >>> Data variables:
     >>>     cor      (index, x, y) float64 1.0 nan nan nan ... 0.9402 0.7254 0.9402 1.0
 
-    To access individual correlations:    
+    To access individual correlations:
+    
     >>> a_vs_b = pd.Series(ds.loc[dict(x = 'a', y = 'b')].cor.values, ds.index.values)
     
     To access all correlations to a:    
+    
     >>> subset = ds.loc[dict(x = 'a')]
     >>> a_vs_all = pd.DataFrame(subset.cor.values, ds.index.values, subset.y.values)
     >>> a_vs_all
@@ -1285,24 +1287,23 @@ def ewmskew(a, n, time = None, bias = False, min_sample = 0.25, axis=0, data = N
 
     >>> old = a.iloc[:10]
     >>> new = a.iloc[10:]
-    f = ewmskew_
-    for f in [ewma_, ewmstd_, ewmrms_, ewmskew_, ]:
-        both = f(a, 3)
-        o = f(old, 3)
-        n = f(new, 3, **o)
-        assert eq(o.data, both.data.iloc[:10]) 
-        assert eq(n.data, both.data.iloc[10:]) 
-        assert both - 'data' == n - 'data'
+    >>> for f in [ewma_, ewmstd_, ewmrms_, ewmskew_, ]:
+    >>>    both = f(a, 3)
+    >>>    o = f(old, 3)
+    >>>    n = f(new, 3, **o)
+    >>>    assert eq(o.data, both.data.iloc[:10]) 
+    >>>    assert eq(n.data, both.data.iloc[10:]) 
+    >>>    assert both - 'data' == n - 'data'
 
     >>> assert abs(a.ewm(10).mean() - ewma(a,10)).max() < 1e-14
     >>> assert abs(a.ewm(10).std() - ewmstd(a,10)).max() < 1e-14
 
     :Example: numpy arrays support
-    -----------------------------------------------
+    -------------------------------
     >>> assert eq(ewma(a.values, 10), ewma(a,10).values)
 
     :Example: nan handling
-    ---------------------------------
+    ----------------------
     while panadas ffill values, timeseries skips nans:
 
     >>> a = pd.Series(np.random.normal(0,1,10000), drange(-9999))
@@ -1311,7 +1312,7 @@ def ewmskew(a, n, time = None, bias = False, min_sample = 0.25, axis=0, data = N
     >>> assert eq(ts[~np.isnan(ts)], ewma(a[~np.isnan(a)], 10))
     
     :Example: initiating the ewma with past state
-    --------------------------------------------------------------------------
+    ------------------------------------------------
     >>> old = np.random.normal(0,1,100)
     >>> new = np.random.normal(0,1,100)
     >>> old_ = ewma_(old, 10)
@@ -1320,7 +1321,7 @@ def ewmskew(a, n, time = None, bias = False, min_sample = 0.25, axis=0, data = N
     >>> assert eq(new_ewma, new_ewma2)
 
     :Example: Support for time & clock
-    --------------------------------------------------------------------------
+    -----------------------------------
     >>> daily = pd.Series(np.random.normal(0,1,10000), drange(-9999)).cumsum()
     >>> monthly = daily.resample('M').last()
     >>> m = ewma(monthly, 3) ## 3-month ewma run on monthly data

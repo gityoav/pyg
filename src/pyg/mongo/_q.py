@@ -285,10 +285,10 @@ class modkey(object):
     def __sub__(self, other) : 
         return (+self) - other
 
-    def __or_(self, other) : 
+    def __or__(self, other) : 
         return (+self) | other
 
-    def __repr_(self, other) : 
+    def __repr__(self) : 
         return 'mod(%s, %s)'%(self._key, self._div)
     
 class mdict(dict):

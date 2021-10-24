@@ -1,4 +1,5 @@
-from pyg import try_none, try_back, try_zero, presync, wrapper, eq, try_list, try_true, try_false, try_nan, try_value
+from pyg import dt, try_none, try_back, try_zero, presync, wrapper, eq, try_list, try_true, try_false, try_nan, try_value
+from pyg.base._decorators import _str 
 import numpy as np
 import pytest
 
@@ -63,3 +64,10 @@ def test_fail_with_hidden_params():
     assert funny(exposed = 1)(f)(4)==4
     with pytest.raises(ValueError):
         funny(_hidden= 1)(f)
+
+
+def test_decorators__str():
+    for value in [1, '2', 3.0, True, dt(0)]:
+        assert _str(value) == str(value)
+    assert _str(None) == "<class 'NoneType'>"
+        

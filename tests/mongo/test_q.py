@@ -1,5 +1,6 @@
 from pyg import Q, q
 import re
+import pytest
 
 def D(value):
     if isinstance(value, dict):
@@ -13,6 +14,7 @@ def D(value):
 def test_q():
     assert D(q.a == 1) == {'a': {'$eq': 1}}
     assert D(q.a != 1) == {'a': {'$ne': 1}}
+    assert D(q.a != [1,2,3]) == {"a": {"$nin": [1, 2, 3]}}
     assert D(q.a <= 1) == {'a': {'$lte': 1}}
     assert D(q.a >= 1) == {'a': {'$gte': 1}}
     assert D(q.a < 1) == {'a': {'$lt': 1}}
@@ -41,7 +43,11 @@ def test_q():
     assert D(~(q.a % 2)) == {'a': {'$mod': [2, 0]}}
     assert D(+(q.a % 2)) == {'a': {'$not': {'$mod': [2, 0]}}}
 
-    
+
+    assert str(q.a % 3) == 'mod(a, 3)'
+    assert D((q.a == 1) | (q.b == 2)) == {'$or': [{'a': {'$eq': 1}}, {'b': {'$eq': 2}}]}
+
+    assert D((q.a % 3 == 1) | (q.b == 2)) == {"$or": [{"a": {"$mod": [3, 1]}}, {"b": {"$eq": 2}}]}
     assert D(q['some text'] == 1) == {'some text': {'$eq': 1}}
     assert D(q.a == re.compile('^test')) == {'a': {'regex': '^test'}}
     assert D(q.a != re.compile('^test')) == {'a': {'$not': {'regex': '^test'}}}
@@ -85,6 +91,26 @@ def test_q():
     assert D((q.a == 1) | q.b < 1) == {'$or': [{'a': {'$eq': 1}}, {'b': {'$lt': 1}}]}
 
 
+def test_q_fails():
+    with pytest.raises(ValueError):
+        (q.a == 1) > 2
+    with pytest.raises(ValueError):
+        (q.a == 1) >= 2
+    with pytest.raises(ValueError):
+        (q.a == 1) < 2
+    with pytest.raises(ValueError):
+        (q.a == 1) <= 2
+
+    assert D((q.a > 1) & q.b == 2) == {"$and": [{"a": {"$gt": 1}}, {"b": {"$eq": 2}}]}
+    assert D((q.a > 1) | q.b == 2) == {"$or": [{"a": {"$gt": 1}}, {"b": {"$eq": 2}}]}
+
+
+def test_Q_with_proxies():
+    assert D(Q({'hello world': 1}).hello_world == 1) == {"hello world": {"$eq": 1}}
+    assert D(Q(['hello world']).hello_world == 1) == {"hello world": {"$eq": 1}}
+
+
+    
 def test_Q_with_keys():
     x = Q(['Adam Aaron', 'Beth Brown', 'James Joyce'])
     assert D((x.adam_aaron == 1) & (x.JAMES_JOYCE == 2)) == {'$and': [{'Adam Aaron': {'$eq': 1}}, {'James Joyce': {'$eq': 2}}]}

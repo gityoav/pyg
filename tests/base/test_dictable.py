@@ -7,7 +7,11 @@ import tempfile
 import os
 import re
 
-
+def test_dictable_init_Excel():
+    fname = 'd:/dropbox/Yoav/python/pyg/tests/base/book.xlsx'
+    df = pd.ExcelFile(fname).parse()
+    rs = dictable(fname)
+    assert dictable(df) == rs
 
 def test_dictable_init():
     assert dict(dictable(data = [1,2,3], b = 1)) == dict(data = [1,2,3], b = [1,1,1])
@@ -166,6 +170,31 @@ def test_dictable_inc():
     assert d.inc(lambda x,y: x>y) == dictable(x = 1, y = 0) 
     assert d.inc(dict(y = 4)) == dictable(x = 2, y = 4)
 
+
+def test_dictable_exc():
+    d = dictable(a = [1,2,3,4])
+    assert d.inc(dict(a = 3)) == dictable(a = 3)
+    assert d.exc(dict(a = 3)) == dictable(a = [1,2,4])
+
+
+def test_dictable_to_string():
+    d = dictable(a = [1,2,3,4])
+    assert d.to_string(rowsep = 'header') == 'a\n-\n1\n2\n3\n4'
+
+
+def test_dictable_join_mismatch():
+    d = dictable(a = [1,2,3], b = [4,5,6])
+    e = dictable(c = [1,2,3])    
+    with pytest.raises(ValueError):
+        d.join(e, ['a', 'b'], 'c')
+    with pytest.raises(ValueError):
+        d.xor(e, ['a', 'b'], 'c')
+        
+
+def test_dictable_xor_no_rhs():
+    d = dictable(a = [1,2,3], b = [4,5,6])
+    e = dictable(c = [4,5,6])    
+    assert d/e == d
 
 def test_unlist():
     d = dictable(a = [], b = [])
@@ -376,3 +405,9 @@ def test_regex_inc_exc():
     assert d.inc(a = re.compile('he')) == dictable(a = ['hello', 'hello kitty'])
     assert d.exc(a = re.compile('he')) == dictable(a = [1, 2, 'world'])
 
+
+def test_tictable_unpivot():
+    rs = dictable(name = ['a', 'b', 'c'], maths = [1,2,3], biology = [4,5,6], french = [7,8,9])
+    full = rs.unpivot('name', 'subject', 'score')
+    science = rs.unpivot('name', dict(science = ['maths', 'biology']), 'score')
+    assert science.relabel(science = 'subject') == full.exc(subject = 'french')

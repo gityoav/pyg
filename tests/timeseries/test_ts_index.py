@@ -1,7 +1,7 @@
 from pyg import presync, dt, drange, eq, ts_sum
-from pyg import df_fillna, df_reindex, nona, reducing, Dict
+from pyg import df_fillna, df_reindex, nona, reducing, Dict, np_reindex
 import pandas as pd; import numpy as np
-
+import pytest
 
 def test_df_fillna():
     s = pd.Series([0., 1., 4., np.nan, 16.], np.arange(0,5))
@@ -20,6 +20,16 @@ def test_df_fillna():
     assert df_fillna(s, 5)[3] == 5
     assert round(df_fillna(s, 'quadratic')[3],10) ==  9.
 
+    s = pd.Series([np.nan, 1., 4., np.nan, 16.], np.arange(0,5))
+    assert len(df_fillna(s, 'nona')) == 3
+    assert len(df_fillna(s, 'fnna')) == 4
+
+
+    df = pd.DataFrame(dict(a = [0,np.nan, 1, 2, 3], b = [0,np.nan, np.nan,3,4]))
+    assert len(df_fillna(df, 'nona')) == 4
+    assert eq(df_fillna(df, 'linear'), pd.DataFrame(dict(a = [0,0.5, 1, 2, 3], b = [0.,1,2,3,4])))
+
+    
     
 def test_df_fillna_multiple():
     s = pd.Series([np.nan, 1., 4., np.nan, 16.], np.arange(0,5))
@@ -41,7 +51,6 @@ def test_df_fillna_no_overlap():
     assert len(nona(df_reindex(s, index))) == 0
     assert eq(s.reindex(index, method = 'ffill'), pd.Series([1,2,3,4,5], index))
 
-    df_reindex(s, index, 'ffill')
 
 
 def test_df_fillna_limit():
@@ -62,8 +71,14 @@ def test_df_reindex():
     outer2 = pd.concat(df_reindex(tss, 'outer', 'ffill'), axis = 1)
     assert len(outer2) == 24
     assert outer2.iloc[-1,0] == 19.
-    
 
+def test_df_reindex_fail():
+    ts = pd.Series(range(100), drange(-99))
+    with pytest.raises(ValueError):
+        df_reindex(ts, 100)
+        
+    assert eq(df_reindex(ts, ts[10:]), ts[10:])
+    
 def test_df_reindex_no_overlap():
     s = pd.Series(np.arange(5), np.arange(0,10,2))
     index = np.arange(1,11,2)
@@ -83,6 +98,19 @@ def test_df_reindex_dict():
     inner2 = df_reindex(Dict(tss), 'inner')    
     assert isinstance(inner2, Dict)
     assert len(inner2[0]) == 16
+
+
+def test_np_renindex():
+    ts = np.arange(1000) * 1.
+    index = pd.Series(range(500), drange(-499))
+    assert eq(np_reindex(ts, index), pd.Series(np.arange(500,1000), drange(-499)))
+    index = pd.Series(range(1500), drange(-1499))
+    assert eq(np_reindex(ts, index), pd.Series(np.arange(1000), drange(-999)))
+
+    ts = np.random.normal(0,1,(1000,3)) * 1.
+    index = drange(-999)
+    assert eq(np_reindex(ts, index, ['a', 'b', 'c']), pd.DataFrame(ts, index, ['a', 'b', 'c']))
+
 
 def test_presync_simple():
     x = pd.Series([1,2,3,4], drange(-3))

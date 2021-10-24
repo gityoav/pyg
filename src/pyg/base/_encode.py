@@ -218,6 +218,21 @@ def pd2bson(value):
     return Binary(pickle.dumps(value))
 
 
+def pd2pa(value):
+    """serialize using arrow. Slightly slower than pickle"""
+    import pyarrow as pa
+    buf = pa.serialize(value).to_buffer()
+    res = buf.to_pybytes()
+    return res
+
+def pa2pd(value):
+    """serialize using arrow. Slightly slower than pickle"""
+    import pyarrow as pa
+    buf = pa.py_buffer(memoryview(value))
+    df = pa.deserialize(buf)
+    return df
+
+
 def np2bson(value):
     """
     converts a numpy array to bytes using value.tobytes(). This is much faster than pickle but does not save shape/type info which we save separately.

@@ -33,11 +33,11 @@ is_array = is_arr
 
 def is_int(value):
     """ is value an int, or any variant of np.intN type"""
-    return isinstance(value, (int, np.int64, np.int32, np.int16, np.int8, np.int))
+    return isinstance(value, (int, np.int64, np.int32, np.int16, np.int8))
 
 def is_float(value):
     """ is value an float, or any variant of np.float """
-    return isinstance(value, (float, np.float, np.float16, np.float32, np.float64))
+    return isinstance(value, (float, np.float16, np.float32, np.float64))
 
 def is_num(value):
     """ is _int(value) or is_float(value)"""

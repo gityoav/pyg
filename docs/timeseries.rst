@@ -196,6 +196,10 @@ ewmstd
 ------
 .. autofunction:: pyg.timeseries._ewm.ewmstd
 
+ewmskew
+--------
+.. autofunction:: pyg.timeseries._ewm.ewmskew
+
 ewmvar
 ------
 .. autofunction:: pyg.timeseries._ewm.ewmvar
@@ -203,6 +207,10 @@ ewmvar
 ewmcor
 ------
 .. autofunction:: pyg.timeseries._ewm.ewmcor
+
+ewmcorr
+------
+.. autofunction:: pyg.timeseries._ewm.ewmcorr
 
 ewmLR
 ------
@@ -212,9 +220,9 @@ ewmGLM
 ------
 .. autofunction:: pyg.timeseries._ewm.ewmGLM
 
-ewmskew
---------
-.. autofunction:: pyg.timeseries._ewm.ewmskew
+ewmxo
+------
+.. autofunction:: pyg.timeseries._ewmxo.ewmxo
 
 functions exposing their state
 ==============================
@@ -266,10 +274,11 @@ exponentially weighted moving functions
 .. autofunction:: pyg.timeseries._ewm.ewmstd_
 .. autofunction:: pyg.timeseries._ewm.ewmvar_
 .. autofunction:: pyg.timeseries._ewm.ewmcor_
+.. autofunction:: pyg.timeseries._ewm.ewmcorr_
 .. autofunction:: pyg.timeseries._ewm.ewmLR_
 .. autofunction:: pyg.timeseries._ewm.ewmGLM_
 .. autofunction:: pyg.timeseries._ewm.ewmskew_
-
+.. autofunction:: pyg.timeseries._ewm.ewmxo_
 
 Index handling
 ==============
