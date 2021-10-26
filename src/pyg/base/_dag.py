@@ -6,6 +6,19 @@ Since we only use topological_sort, our implementation is more specialized and h
 """
 DAGs = {}
 
+def _topological_sort(dag, node, gen):
+    if node not in gen:
+        gen[node] = 0
+    if node in dag:
+        g = gen[node]
+        children = dag[node]
+        for child in children:
+            if not (child in gen and gen[child] > g):
+                gen[child] = g + 1
+            gen = _topological_sort(dag, child, gen)
+    return gen
+
+
 def topological_sort(dag, node, gen = None):
     """
     The directed acyclic graph is stored as a dict with edges that look like:
@@ -31,6 +44,10 @@ def topological_sort(dag, node, gen = None):
     >>> node = 'a'
     >>> assert topological_sort(dag, node) == {'a': 0, 'b': 1, 'c': 2, 'e': 3, 'd': 2}
 
+    :Example: multiple nodes descendants:
+    --------------------------------------
+    >>> assert descendants(dag, ('c', 'd')) == ['c', 'd', 'e']
+
 
     :Example: we compare to networkx alternative:
     ---------
@@ -48,11 +65,6 @@ def topological_sort(dag, node, gen = None):
     >>>    nodes = {node} | nx.descendants(G, node)
     >>>    return list(nx.algorithms.dag.topological_sort(G.subgraph(nodes)))
 
-    >>> def top_sort(dag, node): # we want to match output format of nx.topological_sort
-    >>>    gen = topological_sort(dag, node)
-    >>>    g, n = zip(*sorted(dict_invert(gen).items()))
-    >>>    return sum(n, [])
-
     >>> x = timer(descendants, n = 10000)(dag, node)
     >>> y = timer(nx_topological_sort, n = 10000)(G, node)
     >>> assert x == y
@@ -64,29 +76,34 @@ def topological_sort(dag, node, gen = None):
     >>> assert x * 10 < y    
 
     """
+    dag = get_DAG(dag)
     if gen is None:
         gen = {}
-    if node not in gen:
-        gen[node] = 0
-    if node in dag:
-        g = gen[node]
-        children = dag[node]
-        for child in children:
-            if not (child in gen and gen[child] > g):
-                gen[child] = g + 1
-            gen = topological_sort(dag, child, gen)
+    nodes = set(node) if isinstance(node, (list, set)) else [node]
+    for node in nodes:
+        if node not in gen:
+            gen[node] = 0
+        if node in dag:
+            g = gen[node]
+            children = dag[node]
+            for child in children:
+                if not (child in gen and gen[child] > g):
+                    gen[child] = g + 1
+                gen = _topological_sort(dag, child, gen)
     return gen
 
-def descendants(dag, node):
+def descendants(dag, node, exc = None):
     """
     returns the descendants of the node (with node itself as first element) sorted topologically
 
     Parameters
     ----------
     dag : DAG
-        A dag.
+        A dag or a reference to a DAG
     node : a key
         A key to a node in the graph.
+    exc: None or int or list of ints
+        Most useful is to use exc = 0 to exclude the zeroth generation from future calculations
 
     Returns
     -------
@@ -94,9 +111,16 @@ def descendants(dag, node):
         list of keys for children of node in the graph.
     """
     gen = topological_sort(dag, node)
-    g, n = zip(*sorted(dict_invert(gen).items()))
-    return sum(n, [])
-    
+    if len(gen) == 0:
+        return []
+    else:
+        excs = as_list(exc)
+        if len(excs):
+            nodes = [n for g, n in sorted(dict_invert(gen).items()) if g not in excs]
+        else:
+            nodes = [n for g, n in sorted(dict_invert(gen).items())]
+        return sum(nodes, [])
+
 
 def get_DAG(dag = None):
     # from networkx import DiGraph

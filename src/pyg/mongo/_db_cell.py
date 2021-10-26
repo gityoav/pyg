@@ -11,7 +11,8 @@ _updated = 'updated'
 _db = 'db'
 
 GRAPH = {}
-_PULLED = {}
+_GAD = {} ## a dict from child to parents, hence GAD as opposed to DAG
+PUSHED = []
 
 __all__ = ['db_load', 'db_save', 'db_cell', 'GRAPH']
 
@@ -326,24 +327,37 @@ class db_cell(cell):
         inputs = set([c._address for c in inputs])
         me = self._address
         dag = get_DAG()
-        if me in _PULLED:
-            removed = _PULLED[me] - inputs
+        if me in _GAD:
+            to_remove = _GAD[me] - inputs
         else:
-            removed = []
+            to_remove = []
         for key in inputs:
             add_edge(key, me, dag = dag)
-        for key in removed:
+        for key in to_remove:
             del_edge(key, me, dag = dag)
-        _PULLED[me] = inputs
+        _GAD[me] = inputs
         return self
 
-    def push(self):
-        children = descendants(get_DAG(), self._address)
-        GRAPH[children[0]] = res = self.go()
-        for child in children[1:]:
-            GRAPH[child] = get_cell(**dict(child)).go()
+    def push(self, queue = False):
+        me = self._address
+        GRAPH[me] = res = self.go()
+        if queue:
+            PUSHED.append(me)
+        else:
+            children = descendants(get_DAG(), me, exc = 0)
+            for child in children:
+                GRAPH[child] = get_cell(**dict(child)).go()
         return res
-        
+
+
+def cell_push():
+    global PUSHED
+    children = descendants(get_DAG(), PUSHED, exc = 0)
+    for child in children:
+        GRAPH[child] = get_cell(**dict(child)).go()
+    PUSHED = []
+
+
 def get_cell(table, db, url = None, _deleted = None, **kwargs):
     """
     retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using _deleted.
