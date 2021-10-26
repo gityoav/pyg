@@ -2,16 +2,18 @@ from pyg import dictable, read_csv, Dict, last, dictattr, alphabet, drange, dict
 import pandas as pd
 import numpy as np
 import pytest
-import pymongo
 import tempfile
 import os
 import re
 
+@pytest.mark.skip(reason = 'file not there')
 def test_dictable_init_Excel():
     fname = 'd:/dropbox/Yoav/python/pyg/tests/base/book.xlsx'
     df = pd.ExcelFile(fname).parse()
     rs = dictable(fname)
     assert dictable(df) == rs
+
+
 
 def test_dictable_init():
     assert dict(dictable(data = [1,2,3], b = 1)) == dict(data = [1,2,3], b = [1,1,1])
@@ -68,7 +70,7 @@ def test_dictable_get():
 
 def test_dictable_init_from_cursor():
     t = mongo_table('test', 'test')
-    t = t.drop()
+    t.raw.drop()
     d = dictable(a = [1,2,3], b = [4,5,6])
     t.insert_many(d)
     c = t[::]
@@ -77,7 +79,7 @@ def test_dictable_init_from_cursor():
     assert c[['a', 'b']] == d
     c = dictable(t.collection)
     assert c[['a', 'b']] == d
-    t.drop()
+    t.raw.drop()
 
 def test_dictable_shape():
     assert dictable().shape == (0,0)
