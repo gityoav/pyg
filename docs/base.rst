@@ -105,6 +105,34 @@ cell_clear
 ----------
 .. autofunction:: pyg.base._cell.cell_clear
 
+cell_output
+-----------
+.. autofunction:: pyg.base._cell.cell_output
+
+cell_inputs
+-----------
+.. autofunction:: pyg.base._cell.cell_inputs
+
+get_DAG
+-----------
+.. autofunction:: pyg.base._dag.get_DAG
+
+add_edge
+-----------
+.. autofunction:: pyg.base._dag.add_edge
+
+del_edge
+-----------
+.. autofunction:: pyg.base._dag.del_edge
+
+topological_sort
+-----------
+.. autofunction:: pyg.base._dag.topological_sort
+
+descendants
+-----------
+.. autofunction:: pyg.base._dag.descendants
+
 
 encode and decode/save and load
 ===============================

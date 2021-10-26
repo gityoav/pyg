@@ -82,7 +82,11 @@ periodic_cell
 
 get_cell
 --------
-.. autofunction:: pyg.mongo._cell_get.get_cell
+.. autofunction:: pyg.mongo._db_cell.get_cell
+
+get_cell
+--------
+.. autofunction:: pyg.mongo._db_cell.get_data
 
 db_save
 -------
@@ -91,3 +95,8 @@ db_save
 db_load
 -------
 .. autofunction:: pyg.mongo._db_cell.db_load
+
+cell_push
+-----------
+.. autofunction:: pyg.mongo._db_cell.cell_push
+
