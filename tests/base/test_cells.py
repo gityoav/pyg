@@ -1,5 +1,5 @@
 from pyg import cell, cell_func, dictattr, dt, getargspec
-from pyg.base._cell import cell_output, cell_item
+from pyg.base._cell import cell_output, cell_item, cell_inputs
 import pytest
 
 def test_cell():
@@ -150,3 +150,19 @@ def test_cell_go_levels():
     assert e2.data > e.data and e2.t1.data > e.t1.data and e2.t1.t1.data == e.t1.t1.data
     g = e.go(-1)
     assert g.data > e.data and g.t1.data > e.t1.data and g.t1.t1.data > e.t1.t1.data and g.t1.t1.t1.data > e.t1.t1.t1.data
+    
+    
+def test_cell_inputs():
+    c = cell(lambda a, b: a*b , a = 'text', b = 2)
+    assert cell_inputs(c) == []
+    assert cell_inputs(c, int) == [2]
+    assert cell_inputs(c, str) == ['text']
+    assert cell_inputs(c, (str,int)) == ['text', 2]
+    
+    d = cell(lambda x, y: x +y, x = [c,c,3], y = [c,4])
+    assert cell_inputs(d) == [c,c,c]
+    assert cell_inputs(d, int) == [3,4]
+
+    e = cell(lambda x, y: x +y, x = dict(a = d, b = 4), y = [c,5])
+    assert cell_inputs(e)  == [d,c]
+    assert cell_inputs(e, int)  == [4,5]

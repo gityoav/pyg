@@ -24,7 +24,7 @@ def cell_output(c):
     if res is None:
         res = _data
     return as_list(res)
-
+    
 
 @loop(list, tuple)
 def _cell_item(value, key = None):
@@ -611,6 +611,36 @@ class cell(dictattr):
 
     def __repr__(self):
         return '%s\n%s'%(self.__class__.__name__,tree_repr(dict(self)))
-        
 
+
+def _cell_inputs(value, types):
+    if isinstance(value, types):
+        return [value]
+    elif isinstance(value, list):
+        return sum([_cell_inputs(v, types) for v in value], [])
+    elif isinstance(value, dict) and not isinstance(value, cell):
+        return sum([_cell_inputs(v, types) for v in value.values()], [])
+    else:
+        return []
+        
+def cell_inputs(c, types = cell):
+    """
+    returns a list of inputs for a cell of type 'types'
+
+    Parameters
+    ----------
+    c : cell
+        cell.
+    types : types, optional
+        search for inputs of that type. The default is cell.
+
+    Returns
+    -------
+    list.
+
+    """
+    if isinstance(c, cell):
+        return sum([_cell_inputs(v, types) for v in c._inputs.values()],[])
+    else:
+        return _cell_inputs(c, types)
     

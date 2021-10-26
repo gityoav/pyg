@@ -101,16 +101,23 @@ def descendants(dag, node):
 def get_DAG(dag = None):
     # from networkx import DiGraph
     # return DiGraph()
+    if isinstance(dag, dict):
+        return dag
     if dag not in DAGs:
         DAGs[dag] = {}
     return DAGs[dag]
 
 def add_edge(parent, child, dag = None, value = None):
-    if not isinstance(dag, dict):
-        dag = get_DAG(dag)
+    dag = get_DAG(dag)
     if parent not in dag:
         dag[parent] = {child : value}
     else:
         dag[parent].update({child : value})
+    return dag
+
+def del_edge(parent, child, dag = None):
+    dag = get_DAG(dag)
+    if parent in dag and child in dag[parent]:
+        del dag[parent][child]
     return dag
 

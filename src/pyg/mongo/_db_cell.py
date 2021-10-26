@@ -1,5 +1,5 @@
-from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge
-from pyg.base import cell_item
+from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge
+from pyg.base import cell_item, cell_inputs
 from pyg.base._cell import is_pairs
 from pyg.mongo._q import _deleted, _id, q
 from pyg.mongo._table import mongo_table
@@ -11,9 +11,9 @@ _updated = 'updated'
 _db = 'db'
 
 GRAPH = {}
+_PULLED = {}
 
 __all__ = ['db_load', 'db_save', 'db_cell', 'GRAPH']
-
 
 def db_save(value):
     """
@@ -288,7 +288,7 @@ class db_cell(cell):
         res[_updated] = dt()
         return res.save()
     
-    def pull(self, inputs = True):
+    def pull(self):
         """
         :Example:
         ---------
@@ -320,18 +320,21 @@ class db_cell(cell):
             DESCRIPTION.
 
         """
-        if inputs is True:
-            inputs = {key: None for key in self._inputs}
-        elif isinstance(inputs, (str, list)):
-            inputs = {key: None for key in as_list(inputs)}
-        else:
-            inputs = {}
+        inputs = cell_inputs(self, db_cell)
+        if len(inputs) == 0:
+            return self
+        inputs = set([c._address for c in inputs])
         me = self._address
         dag = get_DAG()
-        for key, value in inputs.items():
-            parent = self.get(key)
-            if isinstance(parent, db_cell):
-                add_edge(parent._address, me, dag = dag)
+        if me in _PULLED:
+            removed = _PULLED[me] - inputs
+        else:
+            removed = []
+        for key in inputs:
+            add_edge(key, me, dag = dag)
+        for key in removed:
+            del_edge(key, me, dag = dag)
+        _PULLED[me] = inputs
         return self
 
     def push(self):
