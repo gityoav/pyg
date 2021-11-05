@@ -1,5 +1,4 @@
-from pyg.base import is_num, is_ts
-from pyg.timeseries._index import df_concat
+from pyg.base import is_num, is_ts, df_concat
 import pandas as pd
 import numpy as np
 import numba

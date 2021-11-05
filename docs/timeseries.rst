@@ -280,30 +280,4 @@ exponentially weighted moving functions
 .. autofunction:: pyg.timeseries._ewm.ewmskew_
 .. autofunction:: pyg.timeseries._ewm.ewmxo_
 
-Index handling
-==============
-
-df_fillna
-----------
-.. autofunction:: pyg.timeseries._index.df_fillna
-
-df_index
---------
-.. autofunction:: pyg.timeseries._index.df_index
-
-df_reindex
-----------
-.. autofunction:: pyg.timeseries._index.df_reindex
-
-presync
--------
-.. autofunction:: pyg.timeseries._index.presync
-
-add/sub/mul/div/pow operators
------------------------------
-.. autofunction:: pyg.timeseries._index.add_
-.. autofunction:: pyg.timeseries._index.mul_
-.. autofunction:: pyg.timeseries._index.div_
-.. autofunction:: pyg.timeseries._index.sub_
-.. autofunction:: pyg.timeseries._index.pow_
 

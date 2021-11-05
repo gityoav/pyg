@@ -88,6 +88,10 @@ def is_tuple(value):
     """is value a tuple"""
     return isinstance(value, tuple)
 
+def is_listable(value):
+    """is value a tuple, list or np.ndarray"""
+    return is_iterable(value) and not isinstance(value, (dict, pd.Series, pd.DataFrame))
+
 def is_date(value):
     """is value a date type: either datetime.date, datetime.datetime or np.datetime64"""
     return isinstance(value, (datetime.date, datetime.datetime, np.datetime64))

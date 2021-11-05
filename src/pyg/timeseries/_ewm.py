@@ -1,8 +1,7 @@
 import numpy as np; import pandas as pd; import xarray as xr
 from pyg.timeseries._math import stdev_calculation_ewm, skew_calculation, cor_calculation_ewm, corr_calculation_ewm, LR_calculation_ewm, variance_calculation_ewm
 from pyg.timeseries._decorators import compiled, first_, _data_state
-from pyg.timeseries._index import presync
-from pyg.base import pd2np, clock, loop_all, loop, is_pd, is_df
+from pyg.base import pd2np, clock, loop_all, loop, is_pd, is_df, presync
 
 __all__ = ['ewma', 'ewmstd', 'ewmvar', 'ewmskew', 'ewmrms',  'ewmcor',  'ewmcorr', 'ewmLR', 'ewmGLM',
            'ewma_', 'ewmstd_', 'ewmskew_', 'ewmrms_', 'ewmcor_', 'ewmvar_','ewmLR_', 'ewmGLM_',]

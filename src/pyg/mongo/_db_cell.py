@@ -1,4 +1,4 @@
-from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge
+from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge, eq
 from pyg.base import cell_item, cell_inputs
 from pyg.base._cell import is_pairs
 from pyg.mongo._q import _deleted, _id, q
@@ -175,7 +175,17 @@ class db_cell(cell):
         db = self.db()
         return db.address + tuple([(key, self.get(key)) for key in db.pk])
 
+
     def _clear(self):
+        """
+        Removes most of the data from the cell. Just keeps it so that we have enough data to load it back from the database
+
+        :Returns:
+        -------
+        db_cell
+            skeletal reference to the database
+
+        """
         if not callable(self.get(_db)): 
             return super(db_cell, self)._clear()
         else:
@@ -287,28 +297,26 @@ class db_cell(cell):
     def go(self, go = 1, mode = 0, **kwargs):
         res = self._go(go = go, mode = mode, **kwargs)
         res[_updated] = dt()
+        PUSHED.append(res._address)
         return res.save()
+        
     
     def pull(self):
         """
+        pull works together with push to ensure that if an upstream cell has updated, downward cells *who register to pull data* gets pushed
+        
+        
         :Example:
         ---------
         >>> from pyg import * 
         >>> db = partial(mongo_table, 'test', 'test', pk  = 'key')
-        >>> c = db_cell(add_, a = 1, b = 2, db = db, key = 'c')().register()
-        >>> d = db_cell(add_, a = 1, b = c, db = db, key = 'd')().register()
-        >>> e = db_cell(add_, a = c, b = d, db = db, key = 'e')().register()
-        >>> f = db_cell(add_, a = e, b = d, db = db, key = 'f')().register()
+        >>> db().raw.drop() # drop the documents
+        >>> c = db_cell(add_, a = 1, b = 2, db = db, key = 'c')()
+        >>> d = db_cell(add_, a = 1, b = c, db = db, key = 'd')()
+        >>> e = db_cell(add_, a = c, b = d, db = db, key = 'e')()
+        >>> f = db_cell(add_, a = e, b = d, db = db, key = 'f')()
         
-        >>> nodes = nx.descendants(DAG(), c._address)
-        >>> sub = nx.algorithms.dag.topological_sort(DAG().subgraph(nodes))
-        >>> for node in sub:
-        >>>     print(node)
-
-        self = d.register()
-        g = DIGRAPH()
-        g.edges
-        inputs = True
+        cell_pull(f)
         
         Parameters
         ----------
@@ -338,15 +346,12 @@ class db_cell(cell):
         _GAD[me] = inputs
         return self
 
-    def push(self, queue = False):
+    def push(self):
         me = self._address
         GRAPH[me] = res = self.go()
-        if queue:
-            PUSHED.append(me)
-        else:
-            children = descendants(get_DAG(), me, exc = 0)
-            for child in children:
-                GRAPH[child] = get_cell(**dict(child)).go()
+        children = descendants(get_DAG(), me, exc = 0)
+        for child in children:
+            GRAPH[child] = get_cell(**dict(child)).go()
         return res
 
 
@@ -356,6 +361,13 @@ def cell_push():
     for child in children:
         GRAPH[child] = get_cell(**dict(child)).go()
     PUSHED = []
+
+
+def cell_pull(nodes, types = db_cell):
+    for node in as_list(nodes):
+        node = node.pull()
+        cell_pull(list(_GAD[node._address]), types)
+    return None        
 
 
 def get_cell(table, db, url = None, _deleted = None, **kwargs):

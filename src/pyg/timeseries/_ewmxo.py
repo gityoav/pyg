@@ -1,6 +1,5 @@
-from pyg.base import Dict, is_num
+from pyg.base import Dict, is_num, sub_, div_
 from pyg.timeseries._ewm import ewma_, ewmstd_
-from pyg.timeseries._index import sub_, div_
 from pyg.timeseries._rolling import v2na 
 from pyg.timeseries._expanding import cumsum_
 

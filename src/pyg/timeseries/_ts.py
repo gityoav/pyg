@@ -2,9 +2,9 @@ import numpy as np
 from pyg.timeseries._math import stdev_calculation, skew_calculation
 from pyg.timeseries._decorators import compiled, first_, _data_state
 from pyg.timeseries._rolling import _vec
-from pyg.base import pd2np, Dict, loop, loop_all
+from pyg.base import pd2np, loop_all
 
-__all__ = ['ts_std', 'ts_mean', 'ts_skew', 'ts_count', 'ts_min', 'ts_max', 'ts_rms', 'ts_median',  'ts_sum', 'nona',
+__all__ = ['ts_std', 'ts_mean', 'ts_skew', 'ts_count', 'ts_min', 'ts_max', 'ts_rms', 'ts_median',  'ts_sum',
            'ts_std_', 'ts_mean_', 'ts_skew_', 'ts_count_', 'ts_min_', 'ts_max_', 'ts_rms_', 'ts_sum_']
 
 ###############
@@ -431,45 +431,6 @@ def ts_skew_(a, bias = False, min_sample = 0.25, axis = 0, data = None, instate 
     """
     state = instate or {}
     return _zip(_ts_skew(a, bias = bias, min_sample = min_sample, axis = axis, **state))
-
-@loop(dict, list, tuple)
-def _nona(df, value = np.nan):
-    if np.isnan(value):
-        mask = np.isnan(df)
-    elif np.isinf(value):
-        mask = np.isinf(df)
-    else:
-        mask = df == value
-    if len(mask.shape) == 2:
-        mask = mask.min(axis=1) == 1
-    return df[~mask]
-
-def nona(a, value = np.nan):
-    """
-    removes rows that are entirely nan (or a specific other value)
-
-    :Parameters:
-    ----------------
-    a : dataframe/ndarray
-        
-    value : float, optional
-        value to be removed. The default is np.nan.
-        
-    :Example:
-    ----------
-    >>> from pyg import *
-    >>> a = np.array([1,np.nan,2,3])
-    >>> assert eq(nona(a), np.array([1,2,3]))
-
-    :Example: multiple columns
-    ---------------------------
-    >>> a = np.array([[1,np.nan,2,np.nan], [np.nan, np.nan, np.nan, 3]]).T 
-    >>> b = np.array([[1,2,np.nan], [np.nan, np.nan, 3]]).T ## 2nd row has nans across
-    >>> assert eq(nona(a), b)
-
-
-    """
-    return _nona(a)
 
 
 ts_min_.output = ['data', 'state']

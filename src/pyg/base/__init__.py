@@ -17,6 +17,8 @@ from pyg.base._inspect import getargspec, getargs, getcallargs, call_with_callar
 from pyg.base._logger import logger, get_logger
 from pyg.base._loop import loop, loops, len0, pd2np, shape, loop_all
 from pyg.base._named_dict import named_dict
+from pyg.base._pandas import df_index, df_columns, df_reindex, np_reindex, df_concat, df_fillna, presync, \
+    add_, sub_, mul_, div_, pow_, df_slice, nona
 from pyg.base._parquet import pd_to_parquet, pd_read_parquet
 from pyg.base._perdictable import join, perdictable
 from pyg.base._reducer import reducer, reducing

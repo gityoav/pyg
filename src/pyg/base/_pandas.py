@@ -12,16 +12,20 @@ If there are multiple columns, we will perform the calculations columns by colum
 
 """
 from pyg.base._types import is_df, is_str, is_num, is_tss, is_int, is_arr, is_pd, is_ts, is_arrs, is_tuples
-from pyg.base import zipper, wrapper, loop, as_list, reducing
-from pyg.timeseries._ts import _nona
-
+from pyg.base._as_list import as_list
+from pyg.base._zip import zipper
+from pyg.base._reducer import reducing
+from pyg.base._decorators import  wrapper
+from pyg.base._loop import loop
+from pyg.base._dates import dt
 import pandas as pd
 import numpy as np
 from copy import copy
 import inspect
+import datetime
 
 
-__all__ = ['df_fillna', 'df_index', 'df_reindex', 'df_columns', 'presync', 'np_reindex']
+__all__ = ['df_fillna', 'df_index', 'df_reindex', 'df_columns', 'presync', 'np_reindex', 'nona']
 
 def _list(values):
     """
@@ -221,6 +225,46 @@ def df_fillna(df, method = None, axis = 0, limit = None):
     """
     return _df_fillna(df, method = method, axis = axis, limit = limit)
 
+@loop(dict, list, tuple)
+def _nona(df, value = np.nan):
+    if np.isnan(value):
+        mask = np.isnan(df)
+    elif np.isinf(value):
+        mask = np.isinf(df)
+    else:
+        mask = df == value
+    if len(mask.shape) == 2:
+        mask = mask.min(axis=1) == 1
+    return df[~mask]
+
+def nona(a, value = np.nan):
+    """
+    removes rows that are entirely nan (or a specific other value)
+
+    :Parameters:
+    ----------------
+    a : dataframe/ndarray
+        
+    value : float, optional
+        value to be removed. The default is np.nan.
+        
+    :Example:
+    ----------
+    >>> from pyg import *
+    >>> a = np.array([1,np.nan,2,3])
+    >>> assert eq(nona(a), np.array([1,2,3]))
+
+    :Example: multiple columns
+    ---------------------------
+    >>> a = np.array([[1,np.nan,2,np.nan], [np.nan, np.nan, np.nan, 3]]).T 
+    >>> b = np.array([[1,2,np.nan], [np.nan, np.nan, 3]]).T ## 2nd row has nans across
+    >>> assert eq(nona(a), b)
+
+
+    """
+    return _nona(a)
+
+
 @loop(list, tuple, dict)
 def _df_reindex(ts, index, method = None, limit = None):
     methods = as_list(method)
@@ -405,7 +449,7 @@ def df_concat(objs, columns = None, axis=1, join = 'outer'):
 
 
 @loop(list, dict, tuple)
-def df_column(ts, column, i = None, n = None):
+def _df_column(ts, column, i = None, n = None):
     """
     This is mostly a helper function to help us loop through multiple columns.
     Function grabs a column from a dataframe/2d array
@@ -458,6 +502,28 @@ def df_column(ts, column, i = None, n = None):
     else:
         return ts
 
+
+def df_column(ts, column, i = None, n = None):
+    """
+    This is mostly a helper function to help us loop through multiple columns.
+    Function grabs a column from a dataframe/2d array
+
+    :Parameters:
+    ----------
+    ts : datafrane
+        the original dataframe or 2-d numpy array
+    column : str
+        name of the column to grab.
+    i : int, optional
+        Can grab the column using its index. The default is None.
+    n : int, optional
+        asserting the number of columns, ts.shape[1]. The default is None.
+
+    :Returns:
+    -------
+    a series or a 1-d numpy array
+    """
+    return _df_column(ts = ts, column = column, i = i, n = n)
 
 def _convert(res, columns):
     """
@@ -718,3 +784,151 @@ def pow_(a, b):
     equivalent to a**b supporting presynching (inner join) of timeseries
     """
     return _pow_(a,b)
+
+
+
+def _df_slice(df, lb = None, ub = None, openclose = '(]'):
+    """
+    
+    :Parameters:
+    ----------
+    df : dataframe
+        DESCRIPTION.
+    lb : TYPE
+        DESCRIPTION.
+    ub : TYPE
+        DESCRIPTION.
+    openclose : 2-character string
+        defines how left/right boundary behave.
+        [,] or c : close
+        (,) or o : open
+        ' ' : do not cut
+    Returns
+    -------
+    sliced dataframe.
+
+    """
+    if isinstance(df, (pd.Index, pd.Series, pd.DataFrame)) and len(df)>0:
+        if is_ts(df):
+            lb = lb if lb is None or isinstance(lb, datetime.time) else dt(lb)
+            ub = ub if ub is None or isinstance(ub, datetime.time) else dt(ub)
+        l,u = openclose if openclose else '(]'
+        if lb is not None:
+            index = df if isinstance(df, pd.Index) else df.index
+            if isinstance(lb, datetime.time):
+                index = index.time
+            if l in '[]cC':
+                df = df[index>=lb]
+            elif l in '()oO':
+                df = df[index>lb]
+            else:
+                raise ValueError('not sure how to parse lower boundary %s'%l)
+        if ub is not None:
+            index = df if isinstance(df, pd.Index) else df.index
+            if isinstance(ub, datetime.time):
+                index = index.time            
+            if lb is not None and lb>ub:
+                raise ValueError('lower bounds %s needs to be lower than upper bounds %s'%(lb,ub))
+            if u in '[]cC':
+                df = df[index<=ub]
+            elif u in '()oO':
+                df = df[index<ub]
+            else:
+                raise ValueError('not sure how to parse lower boundary %s'%u)
+    return df
+
+
+def df_slice(df, lb = None, ub = None, openclose = '(]', n = 1):
+    """
+    slices a dataframe/series/index based on lower/upper bounds
+    
+    :Parameters:
+    ----------
+    df : dataframe
+        Either a single dataframe or a list of dataframes.
+    lb : single or multiple lower bounds
+        lower bounds to cut the data.
+    ub : single or multiple upper bounds
+        upper bounds to cut the data
+    openclose : 2-character string
+        defines how left/right boundary behave.
+        [,] or c : close
+        (,) or o : open
+        ' ' : do not cut
+    
+    :Returns:
+    -------
+    filtered (and possibly stictched) timeseries
+    
+
+    :Example: single timeseries filtering
+    ---------
+    >>> df = pd.Series(np.random.normal(0,1,1000), drange(-999))
+    >>> df_slice(df, None, '-1m')
+    >>> df_slice(df, '-1m', None)
+
+    :Example: single timeseries, multiple filtering
+    ---------
+    >>> df = pd.Series(np.random.normal(0,1,1000), drange(-999))
+    >>> lb = jan1 = drange(2018, None, '1y')
+    >>> ub = feb1 = drange(dt(2018,2,1), None, '1y')
+    >>> assert set(df_slice(df, jan1, feb1).index.month) == {1}
+
+
+    :Example: single timeseries time of day filtering
+    ---------
+    >>> dates = drange(-5, 0, '5n')
+    >>> df = pd.Series(np.random.normal(0,1,12*24*5+1), dates)
+    >>> assert len(df_slice(df, None, datetime.time(hour = 10))) == 606
+    >>> assert len(df_slice(df, datetime.time(hour = 5), datetime.time(hour = 10))) == 300
+    >>> assert len(df_slice(df, lb = datetime.time(hour = 10), ub = datetime.time(hour = 5))) == len(dates) - 300
+
+
+    :Example: stitching together multiple future contracts for a continuous price
+    ---------
+    >>> ub = drange(1980, 2000, '3m')
+    >>> df = [pd.Series(np.random.normal(0,1,1000), drange(-999, date)) for date in ub]
+    >>> df_slice(df, ub = ub)
+
+    :Example: stitching together multiple future contracts for a continuous price in front 5 contracts
+    ---------
+    >>> ub = drange(1980, 2000, '3m')
+    >>> df = [pd.Series(np.random.normal(0,1,1000), drange(-999, date)) for date in ub]
+    >>> df_slice(df, ub = ub, n = 5).iloc[500:]
+
+    :Example: stitching together symbols
+    ---------
+    >>> from pyg import * 
+    >>> ub = drange(1980, 2000, '3m')
+    >>> df = loop(list)(dt2str)(ub)
+    >>> df_slice(df, ub = ub, n = 3)
+
+    
+    """
+    if isinstance(lb, tuple) and len(lb) == 2 and ub is None:
+        lb, ub = lb
+    if isinstance(ub, datetime.time) and isinstance(lb, datetime.time) and lb>ub:
+        pre  = df_slice(df, None, ub)
+        post = df_slice(df, lb, None)
+        return pd.concat([pre, post]).sort_index()        
+    if isinstance(df, list): 
+        if isinstance(lb, list) and ub is None:
+            ub = lb[1:] + [None]
+        elif isinstance(ub, list) and lb is None:
+            lb = [None] + ub[:-1]
+        boundaries = sorted(set([date for date in lb + ub if date is not None]))
+        df = [d if is_pd(d) else pd.Series(d, boundaries) for d in df]
+        if n > 1:
+            df = [pd.concat(df[i: i+n], axis = 1) for i in range(len(df))]
+            for d in df:
+                d.columns = range(d.shape[1])
+    dfs = as_list(df)
+    dlu = zipper(dfs, lb, ub)
+    res = [_df_slice(d, lb = l, ub = u, openclose = openclose) for d, l, u in dlu]
+    if len(res) == 0:
+        return None
+    elif len(res) == 1:
+        return res[0]
+    elif isinstance(lb, list) and isinstance(ub, list):
+        res = pd.concat(res)
+    return res

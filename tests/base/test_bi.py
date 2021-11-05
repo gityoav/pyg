@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from pyg import *
 from pyg import eq, add_, sub_, drange
-from pyg.timeseries._index import _add_
+from pyg.base._pandas import _add_
 import pytest
 
 s1 = pd.Series([1., 2., 3. , np.nan], drange(-3))

@@ -88,11 +88,23 @@ def test_db_cell_queued_push_pull():
     e = db_cell(add_, a = d, b = b, key = 'e', db = db)(mode = -1).pull()
     assert get_data('test', 'test', key = 'e') == 18
     a.a = 6
-    a = a.push(queue = True)
+    a = a.push()
+    assert get_data('test', 'test', key = 'e') == 38
+    b.b = 4
+    b = b.push()
+    assert get_data('test', 'test', key = 'e') == 44
+    db().raw.drop()
+    a = db_cell(add_, a = 1, b = 2, key = 'a', db = db)(mode = -1).pull()
+    b = db_cell(add_, a = a, b = 2, key = 'b', db = db)(mode = -1).pull()    
+    c = db_cell(add_, a = a, b = b, key = 'c', db = db)(mode = -1).pull()
+    d = db_cell(add_, a = c, b = b, key = 'd', db = db)(mode = -1).pull()
+    e = db_cell(add_, a = d, b = b, key = 'e', db = db)(mode = -1).pull()
+    a.a = 6
+    a = a.go()
     assert get_data('test', 'test', key = 'e') == 18
     b.b = 4
-    b = b.push(queue = True)
+    b = b.go()
     assert get_data('test', 'test', key = 'e') == 18
     cell_push()
     assert get_data('test', 'test', key = 'e') == 44
-    db().raw.drop()
+    assert e.load().data == 44    

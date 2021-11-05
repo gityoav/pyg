@@ -377,3 +377,29 @@ There are a few functions extending the inspect module.
    :members: 
 
 
+Pandas Index handling
+=====================
+
+df_fillna
+----------
+.. autofunction:: pyg.base._pandas.df_fillna
+
+df_index
+--------
+.. autofunction:: pyg.base._pandas.df_index
+
+df_reindex
+----------
+.. autofunction:: pyg.base._pandas.df_reindex
+
+presync
+-------
+.. autofunction:: pyg.base._pandas.presync
+
+add/sub/mul/div/pow operators
+-----------------------------
+.. autofunction:: pyg.base._pandas.add_
+.. autofunction:: pyg.base._pandas.mul_
+.. autofunction:: pyg.base._pandas.div_
+.. autofunction:: pyg.base._pandas.sub_
+.. autofunction:: pyg.base._pandas.pow_
