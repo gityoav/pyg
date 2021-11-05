@@ -12,6 +12,7 @@ If there are multiple columns, we will perform the calculations columns by colum
 
 """
 from pyg.base._types import is_df, is_str, is_num, is_tss, is_int, is_arr, is_pd, is_ts, is_arrs, is_tuples
+from pyg.base._dictable import dictable
 from pyg.base._as_list import as_list
 from pyg.base._zip import zipper
 from pyg.base._reducer import reducing
@@ -25,7 +26,7 @@ import inspect
 import datetime
 
 
-__all__ = ['df_fillna', 'df_index', 'df_reindex', 'df_columns', 'presync', 'np_reindex', 'nona']
+__all__ = ['df_fillna', 'df_index', 'df_reindex', 'df_columns', 'presync', 'np_reindex', 'nona', 'df_slice', 'df_unslice', 'add_', 'mul_', 'sub_', 'div_', 'pow_']
 
 def _list(values):
     """
@@ -788,25 +789,8 @@ def pow_(a, b):
 
 
 def _df_slice(df, lb = None, ub = None, openclose = '(]'):
-    """
-    
-    :Parameters:
-    ----------
-    df : dataframe
-        DESCRIPTION.
-    lb : TYPE
-        DESCRIPTION.
-    ub : TYPE
-        DESCRIPTION.
-    openclose : 2-character string
-        defines how left/right boundary behave.
-        [,] or c : close
-        (,) or o : open
-        ' ' : do not cut
-    Returns
-    -------
-    sliced dataframe.
-
+    """    
+    Performs a one-time slice of the dataframe. Does not stich slices together
     """
     if isinstance(df, (pd.Index, pd.Series, pd.DataFrame)) and len(df)>0:
         if is_ts(df):
@@ -840,7 +824,8 @@ def _df_slice(df, lb = None, ub = None, openclose = '(]'):
 
 def df_slice(df, lb = None, ub = None, openclose = '(]', n = 1):
     """
-    slices a dataframe/series/index based on lower/upper bounds
+    slices a dataframe/series/index based on lower/upper bounds.
+    If multiple timeseries are sliced at different times, will then stitch them together.
     
     :Parameters:
     ----------
@@ -932,3 +917,57 @@ def df_slice(df, lb = None, ub = None, openclose = '(]', n = 1):
     elif isinstance(lb, list) and isinstance(ub, list):
         res = pd.concat(res)
     return res
+
+def df_unslice(df, ub):
+    """
+    If we have a rolled multi-column timeseries, and we want to know where each timeseries is originally associated with.
+    As long as you provide the stiching points, forming the upper bound of each original timeseries, 
+    df_unslice will return a dict from each upper bound to a single-column timeseries
+
+    :Example:
+    ---------
+    >>> ub = drange(1980, 2000, '3m')
+    >>> dfs = [pd.Series(date.year * 100 + date.month, drange(-999, date)) for date in ub]
+    >>> df = df_slice(dfs, ub = ub, n = 10)
+
+    >>> df.iloc[700:-700:]    
+    
+    >>>                    0         1         2         3         4         5         6         7   8   9
+    >>> 1979-03-08  198001.0  198004.0  198007.0  198010.0  198101.0  198104.0  198107.0  198110.0 NaN NaN
+    >>> 1979-03-09  198001.0  198004.0  198007.0  198010.0  198101.0  198104.0  198107.0  198110.0 NaN NaN
+    >>> 1979-03-10  198001.0  198004.0  198007.0  198010.0  198101.0  198104.0  198107.0  198110.0 NaN NaN
+    >>> 1979-03-11  198001.0  198004.0  198007.0  198010.0  198101.0  198104.0  198107.0  198110.0 NaN NaN
+    >>> 1979-03-12  198001.0  198004.0  198007.0  198010.0  198101.0  198104.0  198107.0  198110.0 NaN NaN
+    >>>              ...       ...       ...       ...       ...       ...       ...       ...  ..  ..
+    >>> 1998-01-27  199804.0  199807.0  199810.0  199901.0  199904.0  199907.0  199910.0  200001.0 NaN NaN
+    >>> 1998-01-28  199804.0  199807.0  199810.0  199901.0  199904.0  199907.0  199910.0  200001.0 NaN NaN
+    >>> 1998-01-29  199804.0  199807.0  199810.0  199901.0  199904.0  199907.0  199910.0  200001.0 NaN NaN
+    >>> 1998-01-30  199804.0  199807.0  199810.0  199901.0  199904.0  199907.0  199910.0  200001.0 NaN NaN
+    >>> 1998-01-31  199804.0  199807.0  199810.0  199901.0  199904.0  199907.0  199910.0  200001.0 NaN NaN
+
+    >>> res = df_unslice(df, ub)
+    >>> res[ub[0]]
+    >>> 1977-04-07    198001.0
+    >>> 1977-04-08    198001.0
+    >>> 1977-04-09    198001.0
+    >>> 1977-04-10    198001.0
+    >>> 1977-04-11    198001.0
+    >>>                 ...
+    >>> 1979-12-28    198001.0
+    >>> 1979-12-29    198001.0
+    >>> 1979-12-30    198001.0
+    >>> 1979-12-31    198001.0
+    >>> 1980-01-01    198001.0
+    >>> Name: 0, Length: 1000, dtype: float64
+    
+    We can then even slice the data again:
+        
+    >>> assert eq(df_slice(list(res.values()), ub = ub, n = 10), df)
+
+    """
+    n = df.shape[1] if is_df(df) else 1
+    res = dictable(ub = ub, lb = [None] + ub[:-1], i = range(len(ub)))
+    res = res(ts = lambda lb, ub: df_slice(df, lb, ub, '(]'))
+    res = res(rs = lambda i, ts: dictable(u = ub[i: i+n], j = range(len(ub[i: i+n])))(ts = lambda j: ts[j]))
+    rs = dictable.concat(res.rs).listby('u').do([pd.concat, nona], 'ts')
+    return dict(rs['u', 'ts'])

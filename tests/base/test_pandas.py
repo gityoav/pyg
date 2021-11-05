@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import datetime
-from pyg import df_slice, drange, dt, dt_bump, dt2str
+from pyg import df_slice, drange, dt, dt_bump, dt2str, eq, dictable, df_unslice, nona
 
 def test_df_slice():
     df = pd.Series(np.random.normal(0,1,1000), drange(-999, 2000))
@@ -46,3 +46,11 @@ def test_df_slice_roll_symbol():
     assert list(res.iloc[-3].values) == ['19990701', '19991001', '20000101']
     assert res.index[-3] == dt('19990701')
 
+def test_df_unslice():
+    ub = drange(1980, 2000, '3m')
+    dfs = [pd.Series(date.year * 100 + date.month, drange(-999, date)) for date in ub]
+    df = df_slice(dfs, ub = ub, n = 10)
+    res = df_unslice(df, ub)
+    rs = dictable(res.items(), ['ub', 'df'])
+    assert eq(df_slice(df = rs.df, ub = rs.ub, n = 10), df)
+    assert len(rs.inc(lambda df: len(set(nona(df)))>1)) == 0
