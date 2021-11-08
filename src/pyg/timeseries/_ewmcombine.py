@@ -1,9 +1,9 @@
-
-from pyg.timeseries._rolling import na2v, ffill
-from pyg.timeseries._ewm import ewma, ewmcorr
+from pyg.base import df_reindex
+from pyg.timeseries._rolling import na2v, ffill, v2na
+from pyg.timeseries._ewm import ewma, ewmcorr, ewmstd
 import numpy as np
 
-def _ewmcombine(a, w, n = 1024, full = False):
+def _ewmcombine(a, w, n = 1024, vol_days = None, full = False):
     """
     We assume all the joining together etc. is done
     
@@ -63,6 +63,10 @@ def _ewmcombine(a, w, n = 1024, full = False):
     """
     a_ = na2v(ffill(a))
     w_ = na2v(ffill(w))
+    if vol_days:
+        vols = v2na(ffill(ewmstd(a, vol_days)))
+        a_ = a_ / vols
+
     x = np.sum(a_ * w_, axis = 1)
     x2 = x**2
     w1 = np.sum(w_, axis = 1)
@@ -88,6 +92,8 @@ def _ewmcombine(a, w, n = 1024, full = False):
     vol = ffill(np.sqrt(variance))
     mult = 1/vol
     data = x/vol
-    return dict(data = data, vol = vol, rho = erho, mult = mult, cor = c_ if full else None)
+    return dict(data = data, vol = vol, rho = erho, mult = mult, cor = c_ if full else None, vols = vols if vol_days else 1)
 
+def ewmcombine(a, w, n = 1024, full = False, join = 'ij', method = None):
+    df_reindex(a, )
     

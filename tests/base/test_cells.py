@@ -1,4 +1,4 @@
-from pyg import cell, cell_func, dictattr, dt, getargspec
+from pyg import cell, cell_func, dictattr, dt, getargspec, passthru, add_
 from pyg.base._cell import cell_output, cell_item, cell_inputs
 import pytest
 
@@ -63,6 +63,17 @@ def test_cell_func_cell():
     c = c.go()
     assert c.data == a.a + b.b
 
+
+def test_cell_func_relabel():
+    a = cell(passthru, data = 1, a = dict(b = 3), c = [1,2,3])
+    res = cell_func(add_, a = 'a.b')(a, 1)
+    assert res[0] == 4 # should pull a['a']['b'] from a
+    res = cell_func(add_)(a, 1)
+    assert res[0] == 2 # should pull data 
+    res = cell_func(add_, a = ['c', 1])(a, 1)
+    assert res[0] == 3 #should pick the '2' from c
+    res = cell_func(add_, a = ['c', 1])(a, 0)
+    assert res[0] == 2 #should pick the '1' from c
 
 def test_cell_output():
     c = cell()

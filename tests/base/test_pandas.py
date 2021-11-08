@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import datetime
-from pyg import df_slice, drange, dt, dt_bump, dt2str, eq, dictable, df_unslice, nona
+from pyg import df_slice, drange, dt, dt_bump, dt2str, eq, dictable, df_unslice, nona, df_sync, Dict, add_, div_, mul_, sub_, pow_
+from operator import add, itruediv, sub, mul, pow
 
 def test_df_slice():
     df = pd.Series(np.random.normal(0,1,1000), drange(-999, 2000))
@@ -54,3 +55,58 @@ def test_df_unslice():
     rs = dictable(res.items(), ['ub', 'df'])
     assert eq(df_slice(df = rs.df, ub = rs.ub, n = 10), df)
     assert len(rs.inc(lambda df: len(set(nona(df)))>1)) == 0
+
+def test_df_sync():
+    a = pd.DataFrame(np.random.normal(0,1,(100,5)), drange(-100,-1), list('abcde'))
+    b = pd.DataFrame(np.random.normal(0,1,(100,5)), drange(-99), list('bcdef'))
+    c = 'not a timeseries'
+    d = pd.DataFrame(np.random.normal(0,1,(100,1)), drange(-98,1), ['single_column_df'])
+    s = pd.Series(np.random.normal(0,1,105), drange(-104))
+    
+    dfs = [a,b,c,d,s]
+    res = df_sync(dfs, 'ij')
+    assert len(res[0]) == len(res[1]) == len(res[-1]) == 98
+    assert res[2] == 'not a timeseries'
+    assert list(res[0].columns) == list('bcde')
+
+    res = df_sync(dfs, 'oj')
+    assert len(res[0]) == len(res[1]) == len(res[-1]) == 106; 
+    assert res[2] == 'not a timeseries'
+    assert list(res[0].columns) == list('bcde')
+
+    res = df_sync(dfs, join = 'oj', method = 1)
+    assert res[0].iloc[0].sum() == 4
+
+    res = df_sync(dfs, join = 'oj', method = 1, columns = 'oj')
+    assert res[0].iloc[0].sum() == 5
+    assert list(res[0].columns) == list('abcdef')
+    assert list(res[-2].columns) == ['single_column_df'] # single column unaffected
+
+    dfs = Dict(a = a, b = b, c = c, d = d, s = s)
+    res = df_sync(dfs, join = 'oj', method = 1, columns = 'oj')
+    assert res.c == 'not a timeseries'
+    assert res.a.shape == (106,6)
+
+def test_bi():
+    s = pd.Series([1,2,3.], drange(-2,2000))
+    a = pd.DataFrame(dict(a = [1,2,3.], b = [4,5,6.]), drange(-2,2000))
+    b = pd.DataFrame(dict(c = [1,2,3.], b = [4,5,6.]), drange(-3,2000)[:-1])
+    c = 5
+    
+    assert eq(add_(s,a), pd.DataFrame(dict(a = [2,4,6.], b = [5,7,9.]), drange(-2,2000)))
+
+    for f in [add_,sub_,div_,mul_,pow_]:
+        assert f(s,b).shape == (2,2)
+        assert f(s,b, 'oj').shape == (4,2)
+
+        assert f(a,b).shape == (2,1)
+        assert f(a,b, 'oj').shape == (4,1)
+        assert f(a,b, 'oj', 0, 'oj').shape == (4,3)
+
+    # operations with a constant
+    for f,o in zip([add_,sub_,div_,mul_,pow_], [add, sub, itruediv,mul, pow]):
+        for v in [a,b,s,c]:
+            assert eq(f(v,c), o(v,c))
+
+    
+    

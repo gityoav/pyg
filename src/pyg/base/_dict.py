@@ -8,7 +8,7 @@ from copy import copy
 
 
 
-__all__ = ['Dict', 'dict_invert', 'items_to_tree', 'tree_items', 'tree_keys', 'tree_values', 'tree_update', 'tree_setitem']
+__all__ = ['Dict', 'dict_invert', 'items_to_tree', 'tree_items', 'tree_keys', 'tree_values', 'tree_update', 'tree_setitem', 'tree_getitem', 'tree_get']
 
     
 class Dict(dictattr):
@@ -202,6 +202,41 @@ def tree_setitem(tree, key, value, ignore = None, types = None):
     elif isinstance(key, tuple):
         key = list(key)
     _tree_setitem(tree, key + [value], base = base, ignore = ignore, types = types)
+
+def tree_getitem(tree, item):
+    """
+    :Example:
+    ---------
+    >>> tree = dict(person = dict(name = 'james', surname = 'blackburn', age = 30))
+    >>> assert tree_getitem(tree, 'person.name') == 'james'
+    >>> assert tree_getitem(tree, 'person.age') == 30
+    >>> assert tree_getitem(tree, ['person','surname']) == 'blackburn'
+    """
+    items = item.split('.') if isinstance(item, str) else as_list(item)
+    res = tree
+    for i in items:
+        res = res[i]
+    return res
+        
+def tree_get(tree, item, default = None):
+    """
+    :Example:
+    ---------
+    >>> tree = dict(person = dict(name = 'james', surname = 'blackburn', age = 30))
+    >>> assert tree_get(tree, 'person.salary') is None
+    >>> assert tree_get(tree, 'person.age') == 30
+    >>> assert tree_get(tree, ['person','surname', 'other'], 999) == 999
+    """
+    items = item.split('.') if isinstance(item, str) else as_list(item)
+    res = tree
+    for i in items:
+        if isinstance(res, dict) and i in res:
+            res = res[i]
+        else:
+            return default
+    return res
+    
+
 
 def tree_items(tree, types = None):
     """

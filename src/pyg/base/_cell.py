@@ -1,6 +1,6 @@
 from pyg.base._as_list import as_list
 from pyg.base._dictattr import dictattr
-from pyg.base._dict import Dict 
+from pyg.base._dict import Dict, tree_getitem 
 from pyg.base._inspect import getargspec, getargs, getcallargs
 from pyg.base._loop import loop
 from pyg.base._tree_repr import tree_repr
@@ -27,7 +27,7 @@ def cell_output(c):
     
 
 @loop(list, tuple)
-def _cell_item(value, key = None):
+def _cell_item(value, key = None, key_before_data = False):
     if not isinstance(value, cell):
         if isinstance(value, dict):
             return type(value)(**{k: cell_item(v, key) for k, v in value.items()})
@@ -38,19 +38,22 @@ def _cell_item(value, key = None):
         if key is None:
             return value[output[0]]
         else:
-            try:
-                return value[output[0]]
-            except KeyError:
-                return value[key]
-
+            if key_before_data:
+                return tree_getitem(value, key)
+            else:
+                try:
+                    return value[output[0]]
+                except KeyError:
+                    return tree_getitem(value, key)
     else:
         if key is not None:
-            if key in output:
-                return value[key]
-            elif _data == output[0]:
-                return value[_data]
-            else:
-                return Dict(value)[output]
+            try:
+                return tree_getitem(value, key)
+            except Exception:
+                if _data == output[0]:
+                    return value[_data]
+                else:
+                    return Dict(value)[output]
         else:
             if _data == output[0]:
                 return value[_data]
@@ -286,14 +289,14 @@ class cell_func(wrapper):
         varkw = c.pop(spec.varkw) if spec.varkw else {}
         loaded_varkw = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in varkw.items()}
         called_varkw = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_varkw.items()}
-        itemized_varkw = {k : v if k in self.unitemized else cell_item(v, self.relabels.get(k,k)) for k, v in called_varkw.items()}
+        itemized_varkw = {k : v if k in self.unitemized else _cell_item(v, self.relabels[k], True) if k in self.relabels else _cell_item(v, k) for k, v in called_varkw.items()}
 
         defs = spec.defaults if spec.defaults else []
         params = dict(zip(arg_names[-len(defs):], defs))
         params.update(c)
         loaded_params = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in params.items()}
         called_params = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_params.items()}
-        itemized_params = {k : v if k in self.unitemized else cell_item(v, self.relabels.get(k,k)) for k, v in called_params.items()}
+        itemized_params = {k : v if k in self.unitemized else _cell_item(v, self.relabels[k], True) if k in self.relabels else _cell_item(v, k) for k, v in called_params.items()}
         
         args_ = [itemized_params[arg] for arg in arg_names if arg in params] + list(itemized_varargs)
         res = function_(*args_, **itemized_varkw)
