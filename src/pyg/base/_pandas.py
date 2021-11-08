@@ -123,6 +123,31 @@ def df_index(seq, index = 'inner'):
     
 
 def df_columns(seq, index = 'inner'):
+    """
+    returns the columns of the joint object
+    
+    :Example:
+    ---------
+    >>> a = pd.DataFrame(np.random.normal(0,1,(100,5)), drange(-99), list('abcde'))
+    >>> b = pd.DataFrame(np.random.normal(0,1,(100,5)), drange(-99), list('bcdef'))
+    >>> assert list(df_columns([a,b])) == list('bcde')
+    >>> assert list(df_columns([a,b], 'oj')) == list('abcdef')
+    >>> assert list(df_columns([a,b], 'lj')) == list('abcde')
+    >>> assert list(df_columns([a,b], 'rj')) == list('bcdef')
+
+    :Parameters:
+    ----------
+    seq : sequence of dataframes 
+        DESCRIPTION.
+    index : str, optional
+        how to inner-join. The default is 'inner'.
+
+    :Returns:
+    -------
+    pd.Index
+        list of columns.
+    """
+    
     listed = _list(seq)
     indexes= [ts.columns for ts in listed if is_df(ts) and ts.shape[1]>1 and len(set(ts.columns)) == ts.shape[1]] #dataframe with non-unique columns are treated like arrays
     if len(indexes):
@@ -298,6 +323,17 @@ def _df_reindex(ts, index, method = None, limit = None):
             return ts
     else:
         return ts
+    
+
+@loop(list, tuple, dict)
+def _df_recolumn(ts, columns):
+    if columns is not None and is_df(ts) and ts.shape[1] > 1 and len(set(ts.columns)) == ts.shape[1]:
+        return pd.DataFrame({col: ts[col].values if col in ts.columns else np.nan for col in columns}, index = ts.index)
+    else:
+        return ts
+
+def df_recolumn(ts, columns = None):
+    return _df_recolumn(ts, columns)
 
 def np_reindex(ts, index, columns = None):
     """
@@ -543,7 +579,80 @@ def _convert(res, columns):
     else:    
         return np.array(values) if is_int(columns) else pd.Series(res)
 
+def df_sync(dfs, join = 'ij', method = None, columns = 'ij'):
+    """
+    df_sync performs a sync of multiple dataframes
+    
+    :Parameters:
+    ----------
+    dfs : list or dict of timeseries
+        dataframes to be synched
+    join : str, optional
+        index join method. The default is 'ij'.
+    method : str/float, optional
+        how the nan's are to be filled once reindexing occurs. The default is None.
+    columns : str, optional
+        how to sync multi-column timeseries. The default is 'ij'.
 
+    :Example:
+    -------
+    >>> a = pd.DataFrame(np.random.normal(0,1,(100,5)), drange(-100,-1), list('abcde'))
+    >>> b = pd.DataFrame(np.random.normal(0,1,(100,5)), drange(-99), list('bcdef'))
+    >>> c = 'not a timeseries'
+    >>> d = pd.DataFrame(np.random.normal(0,1,(100,1)), drange(-98,1), ['single_column_df'])
+    >>> s = pd.Series(np.random.normal(0,1,105), drange(-104))
+    
+    :Example: inner join on index and columns
+    --------------------------------
+    >>> dfs = [a,b,c,d,s]
+    >>> join = 'ij'; method = None; columns = 'ij'
+    >>> res = df_sync(dfs, 'ij')
+    >>> assert len(res[0]) == len(res[1]) == len(res[-1]) == 98
+    >>> assert res[2] == 'not a timeseries'
+    >>> assert list(res[0].columns) == list('bcde')
+
+    :Example: outer join on index and inner join on columns
+    --------------------------------
+    >>> res = df_sync(dfs, join = 'oj')
+    >>> assert len(res[0]) == len(res[1]) == len(res[-1]) == 106; assert res[2] == 'not a timeseries'
+    >>> assert list(res[0].columns) == list('bcde')
+
+    >>> res = df_sync(dfs, join = 'oj', method = 1)
+    >>> assert res[0].iloc[0].sum() == 4
+
+    :Example: outer join on index and columns
+    -------------------------------------------
+    >>> res = df_sync(dfs, join = 'oj', method = 1, columns = 'oj')
+    >>> assert res[0].iloc[0].sum() == 5
+    >>> assert list(res[0].columns) == list('abcdef')
+    >>> assert list(res[-2].columns) == ['single_column_df'] # single column unaffected
+
+    :Example: synching of dict rather than a list
+    -------------------------------------------
+    >>> dfs = Dict(a = a, b = b, c = c, d = d, s = s)
+    >>> res = df_sync(dfs, join = 'oj', method = 1, columns = 'oj')
+    >>> assert res.c == 'not a timeseries'
+    >>> assert res.a.shape == (106,6)
+    """
+    if isinstance(dfs, dict):
+        values = list(dfs.values())
+    elif isinstance(dfs, (list, tuple)):
+        values = list(dfs)
+    else:
+        return dfs
+    listed = _list(values)
+    tss = [ts for ts in listed if is_ts(ts)]
+    index = df_index(listed, join)
+    dfs = df_reindex(dfs, index, method = method)
+
+    ### now we do the columns
+    if columns is False or columns is None:
+        return dfs
+    else:
+        cols = df_columns(tss, columns)
+        dfs = df_recolumn(dfs, cols)
+    return dfs
+    
 
 class presync(wrapper):
     """
@@ -688,18 +797,22 @@ class presync(wrapper):
 
 
     def wrapped(self, *args, **kwargs):
+        _idx = kwargs.pop('join', self.index)
+        _method = kwargs.pop('method', self.method)
+        _columns = kwargs.pop('columns', self.columns)
+        
         values = list(args) + list(kwargs.values())
         listed = _list(values)
         tss = [ts for ts in listed if is_ts(ts)]
         callargs = inspect.getcallargs(self.function, *args, **kwargs)
-        if is_str(self.index) and self.index in callargs:
-            index = _index(callargs[self.index])
+        if is_str(_idx) and _idx in callargs:
+            index = _index(callargs[_idx])
         else:
-            index = df_index(listed, self.index)
-        args_= df_reindex(args, index, method = self.method)
-        kwargs_= df_reindex(kwargs, index, method = self.method)
+            index = df_index(listed, _idx)
+        args_= df_reindex(args, index, method = _method)
+        kwargs_= df_reindex(kwargs, index, method = _method)
         ### now we do the columns
-        if self.columns is False:
+        if _columns is False:
             return self.function(*args_, **kwargs_)
         else:
             cols = [tuple(ts.columns) for ts in tss if is_df(ts) and ts.shape[1]>1]
@@ -708,7 +821,7 @@ class presync(wrapper):
                 n = len(columns)
                 res = {column: self.function(*df_column(args_,column = column, i = i, n = n), **df_column(kwargs_, column=column, i = i, n = n)) for i, column in enumerate(columns)}
             else:
-                columns = df_columns(listed, self.columns)
+                columns = df_columns(listed, _columns)
                 if is_int(columns):
                     res = {i: self.function(*df_column(args_, column = None, i = i), **df_column(kwargs_, column=None, i = i)) for i in range(columns)}
                 elif columns is None:
@@ -756,35 +869,41 @@ def _pow_(a, b):
     return a**b
 
 
-def add_(a, b):
+def add_(a, b, join = 'ij', method = None, columns = 'ij'):
     """
+    a = pd.Series([1,2,3], drange(-2))
+    b = pd.Series([1,2,3], drange(-3,-1))
+    add_(a,b, 'oj', method = 0)
+    
     addition of a and b supporting presynching (inner join) of timeseries
     """
-    return _add_(a,b)
+    return _add_(a,b, join = join, method = method, columns = columns)
 
-def mul_(a, b):
+def mul_(a, b, join = 'ij', method = None, columns = 'ij'):
     """
     multiplication of a and b supporting presynching (inner join) of timeseries
+    mul_(a,b,join = 'oj', method = 'ffill')
+    cell(mul_, a = a, b = b, join = 'oj')()
     """
-    return _mul_(a,b)
+    return _mul_(a,b, join = join, method = method, columns = columns)
 
-def div_(a, b):
+def div_(a, b, join = 'ij', method = None, columns = 'ij'):
     """
     division of a by b supporting presynching (inner join) of timeseries
     """
-    return _div_(a,b)
+    return _div_(a,b, join = join, method = method, columns = columns)
 
-def sub_(a, b):
+def sub_(a, b, join = 'ij', method = None, columns = 'ij'):
     """
     subtraction of b from a supporting presynching (inner join) of timeseries
     """
-    return _sub_(a,b)
+    return _sub_(a,b, join = join, method = method, columns = columns)
 
-def pow_(a, b):
+def pow_(a, b, join = 'ij', method = None, columns = 'ij'):
     """
     equivalent to a**b supporting presynching (inner join) of timeseries
     """
-    return _pow_(a,b)
+    return _pow_(a,b, join = join, method = method, columns = columns)
 
 
 

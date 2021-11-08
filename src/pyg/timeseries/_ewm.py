@@ -248,8 +248,8 @@ def _ewmcorr(a, n, a0 = None, a1 = None, a2 = None, aa0 = None, aa1 = None, w2 =
         for j in range(m):
             res[i, j, j] = 1.
             if np.isnan(a[i,j]):
-                res[i, j, :] = np.nan
-                res[i, :, j] = np.nan
+                res[i, j, :] = np.nan #if i == 0 else res[i-1, j, :] # we ffill correlations
+                res[i, :, j] = np.nan #if i == 0 else res[i-1, :, j]
             else:
                 p = w
                 w2[j] = w2[j] * p**2 + v**2
@@ -302,7 +302,7 @@ def ewmcorr(a, n, min_sample = 0.25, bias = False, instate = None):
     :Parameters:
     ----------
     a : np.array or a pd.DataFrame
-        timeseries to calculate correlation for
+        multi-variable timeseries to calculate correlation for
     n : int
         days for which rolling correlation is calculated.
     min_sample : float, optional
@@ -312,10 +312,10 @@ def ewmcorr(a, n, min_sample = 0.25, bias = False, instate = None):
     instate : dict, optional
         historical calculations so far.
 
-    Returns
+    :Returns:
     -------
     correlation dataset
-        an xarray.Dataset unless there are only two timeserieses
+        an xarray.Dataset unless there are only two timeseries in a, in which case, a single column correlation timeseries is returned
         
         
     :Example: a pair of ts
@@ -341,7 +341,7 @@ def ewmcorr(a, n, min_sample = 0.25, bias = False, instate = None):
     >>>     2021-09-02    0.875766
     >>>     Length: 9950, dtype: float64    
 
-    :Example: a pair of ts
+    :Example: multi column ts
     ---------
     >>> rtn = np.random.normal(0,1,10000)
     >>> x0 = ewmxo(rtn, 10, 20, 30)[50:]
