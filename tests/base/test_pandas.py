@@ -94,7 +94,7 @@ def test_bi():
     c = 5
     
     assert eq(add_(s,a), pd.DataFrame(dict(a = [2,4,6.], b = [5,7,9.]), drange(-2,2000)))
-
+ 
     for f in [add_,sub_,div_,mul_,pow_]:
         assert f(s,b).shape == (2,2)
         assert f(s,b, 'oj').shape == (4,2)

@@ -6,13 +6,16 @@ from pyg import ewma, ewmrms, ewmstd, ewmskew, ewmvar
 import numpy as np
 import pandas as pd
 from functools import partial
+epsilon = 1e-8
 
 def _nona_data():
+    np.random.seed(0)
     s = pd.Series(np.random.normal(0,1,1000), drange(-999))
     df = pd.DataFrame(np.random.normal(0,1,(1000, 20)), drange(-999))
     return [s,df]
 
 def _nan_data():
+    np.random.seed(0)
     s = pd.Series(np.random.normal(0,1,1000), drange(-999))
     s[s<0.1] = np.nan
     df = pd.DataFrame(np.random.normal(0,1,(1000, 20)), drange(-999))
@@ -42,16 +45,16 @@ def test_ts_pandas_match():
     s, df = _nona_data()
     for n, p in n2p.items():
         f = n2f[n]
-        assert abs(f(s) - p(s)) < 1e-10
-        assert abs(f(df) - p(df)).max() < 1e-10
+        assert abs(f(s) - p(s)) < epsilon
+        assert abs(f(df) - p(df)).max() < epsilon
 
     
     s, df = _nan_data()
     for n, p in n2p.items():
         f = n2f[n]
-        assert abs(f(s) - p(s)) < 1e-10
-        assert abs(f(df) - p(df)).max() < 1e-10
-        assert abs(f(df, axis = 1) - p(df, axis = 1)).max() < 1e-10
+        assert abs(f(s) - p(s)) < epsilon
+        assert abs(f(df) - p(df)).max() < epsilon
+        assert abs(f(df, axis = 1) - p(df, axis = 1)).max() < epsilon
         
 
 def test_expanding_pandas_match():
@@ -78,15 +81,15 @@ def test_expanding_pandas_match():
     s, df = _nona_data()
     for n, p in n2p.items():
         f = n2f[n]
-        assert abs(f(s) - p(s)).max() < 1e-12
-        assert abs(f(df) - p(df)).max().max() < 1e-10
+        assert abs(f(s) - p(s)).max() < epsilon
+        assert abs(f(df) - p(df)).max().max() < epsilon
 
     s, df = _nan_data()
     for n, p in n2p.items():
         f = n2f[n]
-        assert abs(f(s) - p(s)).max() < 1e-12
-        assert abs(f(df) - p(df)).max().max() < 1e-10
-        assert abs(f(df, axis = 1) - p(df, axis = 1)).max().max() < 1e-10
+        assert abs(f(s) - p(s)).max() < epsilon
+        assert abs(f(df) - p(df)).max().max() < epsilon
+        assert abs(f(df, axis = 1) - p(df, axis = 1)).max().max() < epsilon
         
 def test_rolling_pandas_match():
     n2f = dict(
@@ -115,9 +118,9 @@ def test_rolling_pandas_match():
     for n, p in n2p.items():
         f = n2f[n]
         # args = (f(s, 10),p(s, 10)); kwargs = {}; self = sub_
-        assert abs(sub_(f(s, 10),p(s, 10))).max() < 1e-12
-        assert abs(f(df,10) - p(df,10)).max().max() < 1e-10
-        assert abs(f(df,10,axis=1) - p(df,10, axis = 1)).max().max() < 1e-10
+        assert abs(sub_(f(s, 10),p(s, 10))).max() < epsilon
+        assert abs(f(df,10) - p(df,10)).max().max() < epsilon
+        assert abs(f(df,10,axis=1) - p(df,10, axis = 1)).max().max() < epsilon
         
 def test_ewma_pandas_match():
     n2f = dict(ewma = ewma, ewmstd = ewmstd, ewmrms = ewmrms, ewmskew = ewmskew, ewmvar = ewmvar)
@@ -129,9 +132,9 @@ def test_ewma_pandas_match():
 
     for n, p in n2p.items():
         f = n2f[n]
-        assert abs(sub_(f(s, 10), p(s, 10))).max() < 1e-12
-        assert abs(f(df,10) - p(df,10)).max().max() < 1e-10
-        assert abs(f(df,10,axis=1) - p(df,10, axis = 1)).max().max() < 1e-10
+        assert abs(sub_(f(s, 10), p(s, 10))).max() < epsilon
+        assert abs(f(df,10) - p(df,10)).max().max() < epsilon
+        assert abs(f(df,10,axis=1) - p(df,10, axis = 1)).max().max() < epsilon
         
     # for data with nan, pandas ewma can be calculated as clocking time whenever there is nan, hence time = 'index' match.
     # however, this is not the case for std(). I really have no idea how panda handles nans
@@ -139,9 +142,9 @@ def test_ewma_pandas_match():
     n = 'ewma'
     p = n2p[n]
     f = n2f[n]
-    assert abs(sub_(f(s, 10, time = 'i'),p(s, 10))).max() < 1e-12
-    assert abs(f(df,10, time = 'i') - p(df,10)).max().max() < 1e-10
-    assert abs(f(df,10, time = 'i', axis=1) - p(df,10, axis = 1)).max().max() < 1e-10
+    assert abs(sub_(f(s, 10, time = 'i'),p(s, 10))).max() < epsilon
+    assert abs(f(df,10, time = 'i') - p(df,10)).max().max() < epsilon
+    assert abs(f(df,10, time = 'i', axis=1) - p(df,10, axis = 1)).max().max() < epsilon
 
 
 def test_bits_vs_pandas():
@@ -157,7 +160,7 @@ def test_bits_vs_pandas():
 
     s, df = _nan_data()    
     assert abs(np.log10(cumprod(s)) - np.log10(s).cumsum()).max()<1e-13
-    assert abs(np.log10(cumprod(df)) - np.log10(df).cumsum()).max().max()<1e-10
+    assert abs(np.log10(cumprod(df)) - np.log10(df).cumsum()).max().max()<epsilon
 
     assert eq(ffill(s), s.fillna(method = 'ffill'))
 

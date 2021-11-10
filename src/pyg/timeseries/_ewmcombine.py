@@ -66,7 +66,8 @@ def _ewmcombine(a, w, n = 1024, vol_days = None, full = False):
     if vol_days:
         vols = v2na(ffill(ewmstd(a, vol_days)))
         a_ = a_ / vols
-
+    else:
+        vols = 1
     x = np.sum(a_ * w_, axis = 1)
     x2 = x**2
     w1 = np.sum(w_, axis = 1)

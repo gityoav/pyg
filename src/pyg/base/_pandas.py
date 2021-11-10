@@ -906,38 +906,40 @@ def pow_(a, b, join = 'ij', method = None, columns = 'ij'):
     return _pow_(a,b, join = join, method = method, columns = columns)
 
 
+def _closed(oc):
+    if oc in '()oO':
+        return False
+    elif oc in '[]cC':
+        return True
+    else:
+        raise ValueError('not sure how to parse boundary %s'%oc)
+    
 
-def _df_slice(df, lb = None, ub = None, openclose = '(]'):
+def _df_slice(df, lb = None, ub = None, openclose = '[)'):
     """    
     Performs a one-time slice of the dataframe. Does not stich slices together
     """
-    if isinstance(df, (pd.Index, pd.Series, pd.DataFrame)) and len(df)>0:
+    if isinstance(df, (pd.Index, pd.Series, pd.DataFrame)) and len(df)>0 and (ub is not None or lb is not None):
         if is_ts(df):
             lb = lb if lb is None or isinstance(lb, datetime.time) else dt(lb)
             ub = ub if ub is None or isinstance(ub, datetime.time) else dt(ub)
-        l,u = openclose if openclose else '(]'
+        l,u = openclose if openclose else '[)'
+        l = _closed(l); u = _closed(u)
+        if (l or lb is None) and (u or ub is None):
+            try:
+                return df[lb:ub]
+            except Exception:
+                pass
         if lb is not None:
             index = df if isinstance(df, pd.Index) else df.index
             if isinstance(lb, datetime.time):
                 index = index.time
-            if l in '[]cC':
-                df = df[index>=lb]
-            elif l in '()oO':
-                df = df[index>lb]
-            else:
-                raise ValueError('not sure how to parse lower boundary %s'%l)
+            df = df[index>=lb] if l else df[index>lb]
         if ub is not None:
             index = df if isinstance(df, pd.Index) else df.index
             if isinstance(ub, datetime.time):
                 index = index.time            
-            if lb is not None and lb>ub:
-                raise ValueError('lower bounds %s needs to be lower than upper bounds %s'%(lb,ub))
-            if u in '[]cC':
-                df = df[index<=ub]
-            elif u in '()oO':
-                df = df[index<ub]
-            else:
-                raise ValueError('not sure how to parse lower boundary %s'%u)
+            df = df[index<=ub] if u else df[index<ub]
     return df
 
 
