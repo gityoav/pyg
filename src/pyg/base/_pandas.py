@@ -918,14 +918,24 @@ def _closed(oc):
 def _df_slice(df, lb = None, ub = None, openclose = '[)'):
     """    
     Performs a one-time slice of the dataframe. Does not stich slices together
+    
+    pandas slices has two issues:
+        1) it fails for timeseries quite a but
+        2) for timeseries df[dt1:dt2] is close-close while for normal dataframe df[lb,ub] is close-open
+    
     """
     if isinstance(df, (pd.Index, pd.Series, pd.DataFrame)) and len(df)>0 and (ub is not None or lb is not None):
+        l,u = openclose if openclose else '[)'
+        l = _closed(l); u = _closed(u)
         if is_ts(df):
             lb = lb if lb is None or isinstance(lb, datetime.time) else dt(lb)
             ub = ub if ub is None or isinstance(ub, datetime.time) else dt(ub)
-        l,u = openclose if openclose else '[)'
-        l = _closed(l); u = _closed(u)
-        if (l or lb is None) and (u or ub is None):
+            if (l or lb is None) and (u or ub is None):
+                try:
+                    return df[lb:ub]
+                except Exception:
+                    pass
+        elif (l or lb is None) and (ub is None or not u):
             try:
                 return df[lb:ub]
             except Exception:

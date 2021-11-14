@@ -1,7 +1,7 @@
 from pyg.base._as_float import as_float
 from pyg.base._as_list import as_list, as_tuple, first, last, passthru, unique, is_rng
 from pyg.base._cache import cache
-from pyg.base._cell import cell, cell_go, cell_item, cell_func, cell_load, cell_output, cell_clear, cell_inputs
+from pyg.base._cell import cell, cell_go, cell_item, cell_func, cell_load, cell_output, cell_clear, cell_inputs, GRAPH
 from pyg.base._dates import dt,dt_bump, today, ymd, TMIN, TMAX, DAY, futcodes, dt2str, is_bump
 from pyg.base._dag import get_DAG, add_edge, topological_sort, descendants, del_edge
 from pyg.base._decorators import kwargs_support, wrapper, try_value, try_back, try_nan, try_none, try_zero, try_false, try_true, try_list, timer

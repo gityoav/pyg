@@ -1,6 +1,6 @@
 from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge, eq
 from pyg.base import cell_item, cell_inputs
-from pyg.base._cell import is_pairs
+from pyg.base._cell import is_pairs, GRAPH, _GAD, PUSHED
 from pyg.mongo._q import _deleted, _id, q
 from pyg.mongo._table import mongo_table
 
@@ -10,11 +10,7 @@ from pyg.mongo._table import mongo_table
 _updated = 'updated'
 _db = 'db'
 
-GRAPH = {}
-_GAD = {} ## a dict from child to parents, hence GAD as opposed to DAG
-PUSHED = []
-
-__all__ = ['db_load', 'db_save', 'db_cell', 'GRAPH']
+__all__ = ['db_load', 'db_save', 'db_cell']
 
 def db_save(value):
     """
@@ -193,23 +189,22 @@ class db_cell(cell):
 
 
     def save(self):
+        address = self._address
+        doc = (self - _deleted)
         if is_strs(self.db) or self.db is None:
             return self
         db = self.db()
-        address = self._address
         missing = ulist(db.pk) - self.keys()
         if len(missing):
             logger.warning('WARN: document not saved as some keys are missing %s'%missing)
             return self            
-        doc = (self - _deleted)
         ref = type(doc)(**cell_clear(dict(doc)))
         try:
             doc[_id] = db.update_one(ref)[_id]
         except Exception:
             doc[_id] = db.update_one(ref-_id)[_id]
-        new = doc
-        GRAPH[address] = new
-        return new
+        GRAPH[address] = doc
+        return doc
                 
         
     def load(self, mode = 0):
@@ -354,7 +349,6 @@ class db_cell(cell):
             GRAPH[child] = get_cell(**dict(child)).go()
         return res
 
-
 def cell_push():
     global PUSHED
     children = descendants(get_DAG(), PUSHED, exc = 0)
@@ -362,15 +356,15 @@ def cell_push():
         GRAPH[child] = get_cell(**dict(child)).go()
     PUSHED = []
 
-
-def cell_pull(nodes, types = db_cell):
+def cell_pull(nodes, types = cell):
     for node in as_list(nodes):
         node = node.pull()
-        cell_pull(list(_GAD[node._address]), types)
+        children = [get_cell(**dict(a)) for a in _GAD.get(node._address,[])]        
+        cell_pull(children, types)
     return None        
 
 
-def get_cell(table, db, url = None, _deleted = None, **kwargs):
+def get_cell(table = None, db = None, url = None, _deleted = None, **kwargs):
     """
     retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using _deleted.
     It is important to note that this DOES NOT go through the cache mechanism but goes to the database directly every time.
@@ -402,17 +396,28 @@ def get_cell(table, db, url = None, _deleted = None, **kwargs):
     >>> assert get_cell('test','test', surname = 'brown').name == 'bob'
         
     """
+    global GRAPH
     if is_pairs(table):
         params = dict(table)
         params.update({key: value for key, value in dict(db = db, url = url, _deleted = _deleted).items() if value is not None})
         params.update(kwargs)
         return get_cell(**params)
     
-    t = mongo_table(db = db, table = table, url = url)
-    return _load_asof(t, kwargs, _deleted)
-    
+    if db is not None and table is not None:
+        t = mongo_table(db = db, table = table, url = url)
+        return _load_asof(t, kwargs, _deleted)
+    else:
+        pk = kwargs.pop('pk', None)
+        if pk is None:
+            address = tuple(sorted(kwargs.items()))
+            res = GRAPH[address]
+        else:
+            address = tuple([(key, kwargs.get(key)) for key in sorted(as_list(pk))])
+            res = GRAPH[address]
+        return res
 
-def get_data(table, db, url = None, _deleted = None, **kwargs):
+
+def get_data(table = None, db = None, url = None, _deleted = None, **kwargs):
     """
     retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using _deleted.
 

@@ -1,18 +1,26 @@
 from pyg.base._as_list import as_list
 from pyg.base._dictattr import dictattr
-from pyg.base._dict import Dict, tree_getitem 
+from pyg.base._dict import Dict, tree_getitem, tree_update
 from pyg.base._inspect import getargspec, getargs, getcallargs
 from pyg.base._loop import loop
+from pyg.base._ulist import ulist
 from pyg.base._tree_repr import tree_repr
 from pyg.base._decorators import wrapper
 from pyg.base._logger import logger
+from pyg.base._types import is_strs
+from pyg.base._dag import get_DAG, add_edge, del_edge, descendants
 from copy import copy
 
 _data = 'data'
 _output = 'output'
 _function = 'function'
+_pk = 'pk'
 
 __all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_output', 'cell_clear']
+
+GRAPH = {}
+_GAD = {} ## a dict from child to parents, hence GAD as opposed to DAG
+PUSHED = []
 
 def cell_output(c): 
     """
@@ -375,7 +383,7 @@ class cell(dictattr):
     def run(self):
         """
         checks if the cell needs calculation. This depends on the nature of the cell. 
-        By default (for cell and db_cell), if the cell is already calculated so that cell._output exists, then returns False. otherwise True
+        By default (for cell), if the cell is already calculated so that cell._output exists, then returns False. otherwise True
 
         Returns
         -------
@@ -397,7 +405,7 @@ class cell(dictattr):
     
     def save(self):
         """
-        Saves the cell for persistency. Not implemented for simple cell. see db_cell
+        Saves the cell for persistency. For an in-memory cell, this is implemented by storing cell._address in the GRAPH
 
         :Returns:
         -------
@@ -405,34 +413,49 @@ class cell(dictattr):
             self, saved.
 
         """
+        address = self._address
+        GRAPH[address] = self
         return self
-    
-    def register(self, inputs = None):
-        """
-        registers the cell so that it calculates when the inputs of the cells are calculated
-
-        Parameters
-        ----------
-        *inputs : strs
-            list of inputs
-
-        Returns
-        -------
-        cell
-            self.
-
-        """
-        return self
-    
+        
     def load(self, mode = 0):
         """
-        Loads the cell from the database based on primary keys of cell perhaps. Not implemented for simple cell. see db_cell
+        Loads the cell from in-memory GRAPH using primary keys of cell.
+        
+        :Parameters:
+        -------------
+        mode : int
+            if set to -1, will delete the cell from the GRAPH memory
+            if set to +1, will raise an error if not found in GRAPH
+            if set to 0, will load the data if in GRAPH. If not in graph, will do nothing and return self.
 
         :Returns:
         -------
         cell
             self, updated with values from database.
         """
+        address = self._address
+        if address is None:
+            return self
+        pk = ulist(sorted(as_list(self.get(_pk))))
+        missing = pk - self.keys()
+        if len(missing):
+            logger.warning('WARN: document not loaded as some keys are missing %s'%missing)
+            return self            
+        if mode == -1:
+            if address in GRAPH:
+                del GRAPH[address]
+            return self
+        if address in GRAPH:
+            saved = GRAPH[address]
+            res = tree_update(self, dict(saved), ignore = [None])
+            if self.function is None:
+                res.function = saved.function
+            return res
+        elif mode == 1:
+            raise ValueError('mode = 1 and yet %s not found in the GRAPH'%address)
+        return self
+
+
         return self
             
     def __call__(self, go = 0, mode = 0, **kwargs):
@@ -521,6 +544,28 @@ class cell(dictattr):
         """
         return cell_output(self)
 
+    @property
+    def _address(self):
+        """
+        :Example:
+        ----------
+        >>> from pyg import *
+        >>> self = cell(pk = 'key', key = 1)
+        >>> self._address
+        
+        :Returns:
+        -------
+        tuple
+            returns a tuple representing the unique address of the cell.
+        """
+        pk = self.get(_pk)
+        if pk is None:
+            return None
+        elif is_strs(pk):
+            return tuple([(key, self.get(key)) for key in sorted(as_list(pk))])
+        else:
+            raise ValueError('no primary keys provided in %s to determine address'%_pk)
+
     def _clear(self):
         res = self if self.function is None else self - self._output
         return type(self)(**cell_clear(dict(res)))
@@ -607,6 +652,7 @@ class cell(dictattr):
 
         """
         res = self._go(go = go, mode = mode, **kwargs)
+        PUSHED.append(res._address)
         return res.save()
     
     def copy(self):
@@ -615,6 +661,56 @@ class cell(dictattr):
     def __repr__(self):
         return '%s\n%s'%(self.__class__.__name__,tree_repr(dict(self)))
 
+
+    def pull(self):
+        """
+        pull works together with push to ensure that if an upstream cell has updated, downward cells *who register to pull data* gets pushed
+        
+        
+        :Example:
+        ---------
+        >>> from pyg import * 
+        >>> from pyg.base._cell import _GAD
+        >>> c = cell(add_, a = 1, b = 2, pk = 'key', key = 'c')().pull()
+        >>> d = cell(add_, a = 1, b = c, pk = 'key', key = 'd')().pull()
+        >>> e = cell(add_, a = c, b = d, pk = 'key', key = 'e')().pull()
+        >>> f = cell(add_, a = e, b = d, pk = 'key', key = 'f')().pull()
+                
+        Parameters
+        ----------
+        inputs : TYPE, optional
+            DESCRIPTION. The default is True.
+
+        Returns
+        -------
+        cell
+            DESCRIPTION.
+
+        """
+        inputs = cell_inputs(self, cell)
+        if len(inputs) == 0:
+            return self
+        inputs = set([c._address for c in inputs])
+        me = self._address
+        dag = get_DAG()
+        if me in _GAD:
+            to_remove = _GAD[me] - inputs
+        else:
+            to_remove = []
+        for key in inputs:
+            add_edge(key, me, dag = dag)
+        for key in to_remove:
+            del_edge(key, me, dag = dag)
+        _GAD[me] = inputs
+        return self
+
+    def push(self):
+        me = self._address
+        GRAPH[me] = res = self.go()
+        children = descendants(get_DAG(), me, exc = 0)
+        for child in children:
+            GRAPH[child] = GRAPH[child].go()
+        return res
 
 def _cell_inputs(value, types):
     if isinstance(value, types):
@@ -646,4 +742,5 @@ def cell_inputs(c, types = cell):
         return sum([_cell_inputs(v, types) for v in c._inputs.values()],[])
     else:
         return _cell_inputs(c, types)
-    
+
+
