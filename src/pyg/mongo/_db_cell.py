@@ -292,7 +292,9 @@ class db_cell(cell):
     def go(self, go = 1, mode = 0, **kwargs):
         res = self._go(go = go, mode = mode, **kwargs)
         res[_updated] = dt()
-        PUSHED.append(res._address)
+        address = res._address
+        if address:
+            PUSHED[address] = res[_updated]
         return res.save()
         
     
@@ -341,20 +343,21 @@ class db_cell(cell):
         _GAD[me] = inputs
         return self
 
-    def push(self):
+    def push(self):        
         me = self._address
-        GRAPH[me] = res = self.go()
-        children = descendants(get_DAG(), me, exc = 0)
-        for child in children:
-            GRAPH[child] = get_cell(**dict(child)).go()
-        return res
+        cell_push(me)
+        return GRAPH[me]
 
-def cell_push():
+def cell_push(nodes = None):
     global PUSHED
-    children = descendants(get_DAG(), PUSHED, exc = 0)
+    if nodes is None:
+        nodes = PUSHED.keys()
+    children = descendants(get_DAG(), nodes)
     for child in children:
-        GRAPH[child] = get_cell(**dict(child)).go()
-    PUSHED = []
+        GRAPH[child] = (GRAPH[child] if child in GRAPH else get_cell(**dict(child))).go()
+    for child in children:
+        del PUSHED[child]
+
 
 def cell_pull(nodes, types = cell):
     for node in as_list(nodes):

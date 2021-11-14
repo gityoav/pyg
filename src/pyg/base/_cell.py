@@ -10,6 +10,7 @@ from pyg.base._logger import logger
 from pyg.base._types import is_strs
 from pyg.base._dag import get_DAG, add_edge, del_edge, descendants
 from copy import copy
+import datetime
 
 _data = 'data'
 _output = 'output'
@@ -20,7 +21,7 @@ __all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_outpu
 
 GRAPH = {}
 _GAD = {} ## a dict from child to parents, hence GAD as opposed to DAG
-PUSHED = []
+PUSHED = {}
 
 def cell_output(c): 
     """
@@ -658,7 +659,9 @@ class cell(dictattr):
 
         """
         res = self._go(go = go, mode = mode, **kwargs)
-        PUSHED.append(res._address)
+        address = res._address
+        if address:
+            PUSHED[address] = datetime.datetime.now()
         return res.save()
     
     def copy(self):
@@ -712,11 +715,12 @@ class cell(dictattr):
 
     def push(self):
         me = self._address
-        GRAPH[me] = res = self.go()
-        children = descendants(get_DAG(), me, exc = 0)
+        children = descendants(get_DAG(), me)
         for child in children:
             GRAPH[child] = GRAPH[child].go()
-        return res
+        for child in children:
+            del PUSHED[child]
+        return GRAPH[me]
 
 def _cell_inputs(value, types):
     if isinstance(value, types):

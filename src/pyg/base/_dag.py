@@ -1,5 +1,7 @@
 from pyg.base._dict import dict_invert
 from pyg.base._as_list import as_list
+from _collections_abc import dict_keys, dict_values
+
 """
 This module is designed to remove dependency on networkx as it is slow to load and run
 Since we only use topological_sort, our implementation is more specialized and hence faster (we don't test for cyclic nature of graph etc.)
@@ -125,7 +127,7 @@ def topological_sort(dag, node, gen = None):
     dag = get_DAG(dag)
     if gen is None:
         gen = {}
-    nodes = set(node) if isinstance(node, (list, set)) else [node]
+    nodes = set(node) if isinstance(node, (list, set, dict_keys, dict_values)) else [node]
     for node in nodes:
         if node not in gen:
             gen[node] = 0
