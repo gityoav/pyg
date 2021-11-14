@@ -310,6 +310,12 @@ class cell_func(wrapper):
         res = function_(*args_, **itemized_varkw)
         called_params.update(called_varkw)
         return res, itemized_varargs, called_params
+    
+    @property
+    def output(self):
+        return getattr(self.function, _output, None)
+        
+        
 
 def is_pairs(pairs):
     """
