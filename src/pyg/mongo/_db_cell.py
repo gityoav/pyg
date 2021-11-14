@@ -1,6 +1,6 @@
 from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge, eq
 from pyg.base import cell_item, cell_inputs
-from pyg.base._cell import is_pairs, GRAPH, _GAD, PUSHED
+from pyg.base._cell import is_pairs, GRAPH, _GAD, UPDATED
 from pyg.mongo._q import _deleted, _id, q
 from pyg.mongo._table import mongo_table
 
@@ -291,10 +291,11 @@ class db_cell(cell):
     
     def go(self, go = 1, mode = 0, **kwargs):
         res = self._go(go = go, mode = mode, **kwargs)
-        res[_updated] = dt()
         address = res._address
-        if address:
-            PUSHED[address] = res[_updated]
+        if address in UPDATED:
+            res[_updated] = UPDATED[address] 
+        else: 
+            res[_updated] = dt()
         return res.save()
         
     
@@ -349,14 +350,14 @@ class db_cell(cell):
         return GRAPH[me]
 
 def cell_push(nodes = None):
-    global PUSHED
+    global UPDATED
     if nodes is None:
-        nodes = PUSHED.keys()
+        nodes = UPDATED.keys()
     children = descendants(get_DAG(), nodes)
     for child in children:
         GRAPH[child] = (GRAPH[child] if child in GRAPH else get_cell(**dict(child))).go()
     for child in children:
-        del PUSHED[child]
+        del UPDATED[child]
 
 
 def cell_pull(nodes, types = cell):

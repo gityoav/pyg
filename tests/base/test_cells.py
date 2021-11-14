@@ -1,6 +1,7 @@
 from pyg import cell, cell_func, dictattr, dt, getargspec, passthru, add_
-from pyg.base._cell import cell_output, cell_item, cell_inputs
+from pyg.base._cell import cell_output, cell_item, cell_inputs, UPDATED
 import pytest
+from pyg import get_cell, cell_push, cell_pull
 
 def test_cell():
     c = cell(lambda a:a+1)
@@ -177,3 +178,27 @@ def test_cell_inputs():
     e = cell(lambda x, y: x +y, x = dict(a = d, b = 4), y = [c,5])
     assert cell_inputs(e)  == [d,c]
     assert cell_inputs(e, int)  == [4,5]
+    
+def test_cell_push_and_updated():
+    a = cell(passthru, data = 1, pk = 'i', i = 0)().pull()
+    b = cell(passthru, data = 2, pk = 'i', i = 1)().pull()
+    for i in range(2, 10):
+        c = cell(add_, a = a, b = b, pk = 'i', i = i)().pull()
+        a = b
+        b = c
+    cell_push()
+    assert len(UPDATED) == 0
+    assert c.data == 89
+    assert get_cell(i = 9).data == 89
+    c = get_cell(i = 1).go()
+    assert list(UPDATED.keys()) == [(('i', 1),)]
+    c.data = 3
+    cell_push()
+    assert get_cell(i = 9).data == 123    
+    assert UPDATED == {}
+
+
+        
+    
+    
+    

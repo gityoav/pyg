@@ -21,7 +21,7 @@ __all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_outpu
 
 GRAPH = {}
 _GAD = {} ## a dict from child to parents, hence GAD as opposed to DAG
-PUSHED = {}
+UPDATED = {}
 
 def cell_output(c): 
     """
@@ -594,6 +594,8 @@ class cell(dictattr):
             res, called_args, called_kwargs = function(go = go-1 if go>0 else go, mode = mode, **kwargs)
             c = self + called_kwargs
             output = cell_output(c)
+            if address:
+                UPDATED[address] = datetime.datetime.now()
             if output is None:
                 c[_data] = res
             elif len(output)>1:
@@ -659,9 +661,6 @@ class cell(dictattr):
 
         """
         res = self._go(go = go, mode = mode, **kwargs)
-        address = res._address
-        if address:
-            PUSHED[address] = datetime.datetime.now()
         return res.save()
     
     def copy(self):
@@ -673,7 +672,7 @@ class cell(dictattr):
 
     def pull(self):
         """
-        pull works together with push to ensure that if an upstream cell has updated, downward cells *who register to pull data* gets pushed
+        pull works together with push to ensure that if an upstream cell has updated, downward cells *who register to pull data* gets UPDATED
         
         
         :Example:
@@ -719,7 +718,7 @@ class cell(dictattr):
         for child in children:
             GRAPH[child] = GRAPH[child].go()
         for child in children:
-            del PUSHED[child]
+            del UPDATED[child]
         return GRAPH[me]
 
 def _cell_inputs(value, types):
