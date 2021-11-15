@@ -41,20 +41,20 @@ def test_get_cell_with_version_control():
     with pytest.raises(ValueError):
         get_cell('test','test', a = 1, b = 1)
 
-    assert get_cell('test','test', a = 1, b = 1, _deleted = t).data == 1
+    assert get_cell('test','test', a = 1, b = 1, deleted = t).data == 1
     db().raw.drop()
 
 
 def test_get_cell_fail_on_history():
     db = mongo_table(db = 'test', table = 'test')
     db.drop()
-    db.insert_one(dict(a = 1, _deleted = dt(2000)))
+    db.insert_one(dict(a = 1, deleted = dt(2000)))
     with pytest.raises(ValueError):
-        get_cell('test', 'test', a = 1, _deleted = dt(2001))
+        get_cell('test', 'test', a = 1, deleted = dt(2001))
     db.insert_one(dict(a = 1, b = 1))
     db.insert_one(dict(a = 1, b = 2))
     with pytest.raises(ValueError):
-        get_cell('test', 'test', a = 1, _deleted = dt(2001))
+        get_cell('test', 'test', a = 1, deleted = dt(2001))
 
 
 def test_cell_push_pull():

@@ -32,8 +32,8 @@ class mongo_pk_reader(mongo_reader):
     """
     we set up a system in Mongo to ensure we can mimin tables with primary keys. 
     The way we do this is two folds:
-        - At document insertion, we mark as _deleted old documents sharing the same keys by adding a key _deleted to the old doc
-        - At reading, we filter for documents where q._deleted.not_exists.
+        - At document insertion, we mark as deleted old documents sharing the same keys by adding a key deleted to the old doc
+        - At reading, we filter for documents where q.deleted.not_exists.
 
     """    
     def __init__(self, cursor, pk, writer = None, reader = None, query = None, **_):

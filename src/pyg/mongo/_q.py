@@ -36,7 +36,7 @@ _prev = '_prev'
 _data = 'data'
 _doc = 'doc'
 _pk = '_pk'
-_deleted = '_deleted'
+_deleted = 'deleted'
 
 
 _type2bson = {float : [1,19], 

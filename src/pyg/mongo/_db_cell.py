@@ -1,7 +1,7 @@
 from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge, eq
 from pyg.base import cell_item, cell_inputs
 from pyg.base._cell import is_pairs, GRAPH, _GAD, UPDATED
-from pyg.mongo._q import _deleted, _id, q
+from pyg.mongo._q import _id, q, _deleted
 from pyg.mongo._table import mongo_table
 
 
@@ -62,19 +62,19 @@ def db_load(value, mode = 0):
     else:
         return value
     
-def _load_asof(table, kwargs, _deleted):
+def _load_asof(table, kwargs, deleted):
     t = table.inc(kwargs)
     if len(t) == 0:
         raise ValueError('no cells found matching %s'%kwargs)
-    live = t.inc(q._deleted.not_exists)
-    if _deleted is None:
+    live = t.inc(q.deleted.not_exists)
+    if deleted is None:
         if len(live) == 0:
             raise ValueError('no undeleted cells found matching %s'%kwargs)        
         elif len(live)>1:
             raise ValueError('multiple cells found matching %s'%kwargs)
         res = live[0]
     else:
-        history = t.inc(q._deleted >_deleted) #cells alive at _deleted
+        history = t.inc(q.deleted > deleted) #cells alive at deleted
         if len(history) == 0:
             if len(live) == 0:
                 raise ValueError('no undeleted cells found matching %s'%kwargs)        
@@ -82,7 +82,7 @@ def _load_asof(table, kwargs, _deleted):
                 raise ValueError('multiple cells found matching %s'%kwargs)
             res = live[0]
         else:
-            res = history.sort('_deleted')[0]
+            res = history.sort('deleted')[0]
     return res
 
 
@@ -269,7 +269,7 @@ class db_cell(cell):
             return self
         if address not in GRAPH:
             if is_date(mode):
-                GRAPH[address] = _load_asof(db.raw, kwargs, _deleted = mode)
+                GRAPH[address] = _load_asof(db.raw, kwargs, deleted = mode)
             else:
                 try:
                     GRAPH[address] = db[kwargs]
@@ -373,9 +373,9 @@ def cell_pull(nodes, types = cell):
     return None        
 
 
-def get_cell(table = None, db = None, url = None, _deleted = None, **kwargs):
+def get_cell(table = None, db = None, url = None, deleted = None, **kwargs):
     """
-    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using _deleted.
+    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using deleted.
     It is important to note that this DOES NOT go through the cache mechanism but goes to the database directly every time.
 
     :Parameters:
@@ -386,7 +386,7 @@ def get_cell(table = None, db = None, url = None, _deleted = None, **kwargs):
         name of database.
     url : TYPE, optional
         DESCRIPTION. The default is None.
-    _deleted : datetime/None, optional
+    deleted : datetime/None, optional
         The date corresponding to the version of the cell we want
         None = live cell
         otherwise, the cell that was first deleted after this date.
@@ -408,13 +408,13 @@ def get_cell(table = None, db = None, url = None, _deleted = None, **kwargs):
     global GRAPH
     if is_pairs(table):
         params = dict(table)
-        params.update({key: value for key, value in dict(db = db, url = url, _deleted = _deleted).items() if value is not None})
+        params.update({key: value for key, value in dict(db = db, url = url, deleted = deleted).items() if value is not None})
         params.update(kwargs)
         return get_cell(**params)
     
     if db is not None and table is not None:
         t = mongo_table(db = db, table = table, url = url)
-        return _load_asof(t, kwargs, _deleted)
+        return _load_asof(t, kwargs, deleted)
     else:
         pk = kwargs.pop('pk', None)
         if pk is None:
@@ -426,9 +426,9 @@ def get_cell(table = None, db = None, url = None, _deleted = None, **kwargs):
         return res
 
 
-def get_data(table = None, db = None, url = None, _deleted = None, **kwargs):
+def get_data(table = None, db = None, url = None, deleted = None, **kwargs):
     """
-    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using _deleted.
+    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using deleted.
 
     :Parameters:
     ----------
@@ -438,7 +438,7 @@ def get_data(table = None, db = None, url = None, _deleted = None, **kwargs):
         name of database.
     url : TYPE, optional
         DESCRIPTION. The default is None.
-    _deleted : datetime/None, optional
+    deleted : datetime/None, optional
         The date corresponding to the version of the cell we want
         None = live cell
         otherwise, the cell that was first deleted after this date.
@@ -458,4 +458,4 @@ def get_data(table = None, db = None, url = None, _deleted = None, **kwargs):
     >>> assert get_data('test','test', surname = 'brown') is None
         
     """    
-    return cell_item(get_cell(table, db = db, url = url, _deleted = _deleted, **kwargs), key = 'data')
+    return cell_item(get_cell(table, db = db, url = url, deleted = deleted, **kwargs), key = 'data')

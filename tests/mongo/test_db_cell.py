@@ -231,33 +231,33 @@ def test_db_cell_point_in_time():
     z0 = db_cell(add_, a = x0, b = y0, key = 'z', db = db).go()
 
     ## now delete
-    db().raw.inc(q._deleted.not_exists).set(_deleted = dt(2000))
+    db().raw.inc(q.deleted.not_exists).set(deleted = dt(2000))
     assert len(db()) == 0
 
     ## now try and grab...
     with pytest.raises(ValueError):
         get_cell('test', 'test', key = 'z')
 
-    assert get_cell('test', 'test', key = 'z', _deleted = dt(1999)).data == 8
+    assert get_cell('test', 'test', key = 'z', deleted = dt(1999)).data == 8
 
     with pytest.raises(ValueError):
-        get_cell('test', 'test', key = 'z', _deleted = dt(2001))
+        get_cell('test', 'test', key = 'z', deleted = dt(2001))
 
     x1 = db_cell(add_, a = 10, b = 20, key = 'x', db = db)(mode = -1)
     y1 = db_cell(add_, a = x1, b = 20, key = 'y', db = db)(mode = -1)
     z1 = db_cell(add_, a = x1, b = y1, key = 'z', db = db)(mode = -1)
     
-    db().raw.inc(q._deleted.not_exists).set(_deleted = dt(2002))
+    db().raw.inc(q.deleted.not_exists).set(deleted = dt(2002))
 
-    assert get_cell('test', 'test', key = 'z', _deleted = dt(1999)).data == 8
-    assert get_cell('test', 'test', key = 'z', _deleted = dt(2001)).data == 80
+    assert get_cell('test', 'test', key = 'z', deleted = dt(1999)).data == 8
+    assert get_cell('test', 'test', key = 'z', deleted = dt(2001)).data == 80
 
     x2 = db_cell(add_, a = 100, b = 200, key = 'x', db = db)(mode = -1)
     y2 = db_cell(add_, a = x2, b = 200, key = 'y', db = db)(mode = -1)
     z2 = db_cell(add_, a = x2, b = y2, key = 'z', db = db)(mode = -1)
         
-    assert get_cell('test', 'test', key = 'z', _deleted = dt(1999)).data == 8
-    assert get_cell('test', 'test', key = 'z', _deleted = dt(2001)).data == 80
+    assert get_cell('test', 'test', key = 'z', deleted = dt(1999)).data == 8
+    assert get_cell('test', 'test', key = 'z', deleted = dt(2001)).data == 80
     assert get_cell('test', 'test', key = 'z').data == 800
 
     

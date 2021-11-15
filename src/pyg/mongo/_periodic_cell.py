@@ -1,7 +1,5 @@
-from pyg.base import dt, dt_bump, wrapper, as_list, getcallargs, getargs, cell_item
+from pyg.base import dt, dt_bump
 from pyg.mongo._db_cell import db_cell, _updated
-from pyg.mongo._table import mongo_table
-from functools import partial
 
 __all__ = ['periodic_cell']
 _period = 'period'

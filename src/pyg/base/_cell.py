@@ -390,6 +390,7 @@ class cell(dictattr):
         if output is not None:
             kwargs[_output] = output
         super(cell, self).__init__(**kwargs)
+        self.pull()
 
 
     def run(self):
@@ -707,10 +708,10 @@ class cell(dictattr):
         ---------
         >>> from pyg import * 
         >>> from pyg.base._cell import _GAD
-        >>> c = cell(add_, a = 1, b = 2, pk = 'key', key = 'c')().pull()
-        >>> d = cell(add_, a = 1, b = c, pk = 'key', key = 'd')().pull()
-        >>> e = cell(add_, a = c, b = d, pk = 'key', key = 'e')().pull()
-        >>> f = cell(add_, a = e, b = d, pk = 'key', key = 'f')().pull()
+        >>> c = cell(add_, a = 1, b = 2, pk = 'key', key = 'c')()
+        >>> d = cell(add_, a = 1, b = c, pk = 'key', key = 'd')()
+        >>> e = cell(add_, a = c, b = d, pk = 'key', key = 'e')()
+        >>> f = cell(add_, a = e, b = d, pk = 'key', key = 'f')()
                 
         Parameters
         ----------
