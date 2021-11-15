@@ -1,9 +1,9 @@
 from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge, eq
-from pyg.base import cell_item, cell_inputs
-from pyg.base._cell import is_pairs, GRAPH, _GAD, UPDATED
+from pyg.base import cell_item, cell_inputs, Dict
+from pyg.base._cell import is_pairs, GRAPH, _GAD, UPDATED, _pk
 from pyg.mongo._q import _id, q, _deleted
 from pyg.mongo._table import mongo_table
-
+from functools import partial
 
 # import networkx as nx
 
@@ -142,10 +142,19 @@ class db_cell(cell):
 
     def __init__(self, function = None, output = None, db = None, **kwargs):
         if db is not None:
+            if not isinstance(db, partial):
+                raise ValueError('db must be a partial of a function like mongo_table initializing a mongo cursor')
             super(db_cell, self).__init__(function = function, output = output, db = db, **kwargs)
         else:
             self[_db] = None
             super(db_cell, self).__init__(function = function, output = output, **kwargs)
+
+    @property
+    def _pk(self):
+        if self.get(_db) is None:
+            return super(db_cell, self)._pk
+        else:
+            return self.db.keywords.get(_pk)        
 
     @property
     def _address(self):
@@ -164,10 +173,8 @@ class db_cell(cell):
         tuple
             returns a tuple representing the unique address of the cell.
         """
-        if self.db is None:
-            return None
-        elif is_strs(self.db):
-            return tuple([(key, self.get(key)) for key in as_list(self.db)])
+        if self.get(_db) is None:
+            return super(db_cell, self)._address
         db = self.db()
         return db.address + tuple([(key, self.get(key)) for key in db.pk])
 
@@ -182,17 +189,17 @@ class db_cell(cell):
             skeletal reference to the database
 
         """
-        if not callable(self.get(_db)): 
+        if self.get(_db) is None: 
             return super(db_cell, self)._clear()
         else:
             return self[[_db] + self.db().pk]
 
 
     def save(self):
+        if self.get(_db) is None:
+            return super(db_cell, self).save()
         address = self._address
         doc = (self - _deleted)
-        if is_strs(self.db) or self.db is None:
-            return self
         db = self.db()
         missing = ulist(db.pk) - self.keys()
         if len(missing):
@@ -207,7 +214,7 @@ class db_cell(cell):
         return doc
                 
         
-    def load(self, mode = 0, bind = None):
+    def load(self, mode = 0):
         """
         loads a document from the database and updates various keys.
         
@@ -245,16 +252,16 @@ class db_cell(cell):
         document
 
         """
+        if self.get(_db) is None:
+            return super(db_cell, self).load(mode = mode)
         if isinstance(mode, (list, tuple)):
             if len(mode) == 0:
                 mode = [0]
             if len(mode) == 1 or (len(mode)==2 and mode[0] == -1):
                 res = self.load(-1)
-                return res.load(mode[-1], bind = bind)
+                return res.load(mode[-1])
             else:
                 raise ValueError('mode can only be of the form [], [mode] or [-1, mode]')
-        if not callable(self.get(_db)): ### TO DO: NEED TO MOVE TO loading using cell.load() method
-            return self
         db = self.db()
         pk = ulist(db.pk)
         missing = pk - self.keys()
@@ -280,7 +287,9 @@ class db_cell(cell):
                         return self         
         if address in GRAPH:
             saved = GRAPH[address]
-            if saved.get(_updated) is not None and self.get(_updated) is not None and saved.get(_updated) > self.get(_updated):
+            if saved.get(_updated) is None and self.get(_updated) is None:
+                res = tree_update(self, dict(saved), ignore = [None])
+            elif saved.get(_updated) is not None and (self.get(_updated) is None or saved.get(_updated) > self.get(_updated)):
                 res = tree_update(self, dict(saved), ignore = [None])
             else:
                 res = tree_update(saved, dict(self), ignore = [None])
@@ -290,7 +299,7 @@ class db_cell(cell):
         return self
     
     def go(self, go = 1, mode = 0, **kwargs):
-        res = self._go(go = go, mode = mode, **kwargs)
+        res = (self + kwargs)._go(go = go, mode = mode)
         address = res._address
         if address in UPDATED:
             res[_updated] = UPDATED[address] 
@@ -298,51 +307,6 @@ class db_cell(cell):
             res[_updated] = dt()
         return res.save()
         
-    
-    def pull(self):
-        """
-        pull works together with push to ensure that if an upstream cell has updated, downward cells *who register to pull data* gets pushed
-        
-        
-        :Example:
-        ---------
-        >>> from pyg import * 
-        >>> db = partial(mongo_table, 'test', 'test', pk  = 'key')
-        >>> db().raw.drop() # drop the documents
-        >>> c = db_cell(add_, a = 1, b = 2, db = db, key = 'c')()
-        >>> d = db_cell(add_, a = 1, b = c, db = db, key = 'd')()
-        >>> e = db_cell(add_, a = c, b = d, db = db, key = 'e')()
-        >>> f = db_cell(add_, a = e, b = d, db = db, key = 'f')()
-        
-        cell_pull(f)
-        
-        Parameters
-        ----------
-        inputs : TYPE, optional
-            DESCRIPTION. The default is True.
-
-        Returns
-        -------
-        cell
-            DESCRIPTION.
-
-        """
-        inputs = cell_inputs(self, db_cell)
-        if len(inputs) == 0:
-            return self
-        inputs = set([c._address for c in inputs])
-        me = self._address
-        dag = get_DAG()
-        if me in _GAD:
-            to_remove = _GAD[me] - inputs
-        else:
-            to_remove = []
-        for key in inputs:
-            add_edge(key, me, dag = dag)
-        for key in to_remove:
-            del_edge(key, me, dag = dag)
-        _GAD[me] = inputs
-        return self
 
     def push(self):        
         me = self._address
@@ -350,13 +314,56 @@ class db_cell(cell):
         cell_push(me, exc = 0)
         return res
 
-            
+    def bind(self, **bind):
+        """
+        bind adds key-words to the primary keys of a cell
+
+        :Parameters:
+        ----------
+        bind : dict
+            primary keys and their values.
+            The value can be a callable function, transforming existing values
+
+        :Returns:
+        -------
+        res : cell
+            a cell with extra binding as primary keys.
+
+        :Example:
+        ---------
+        >>> from pyg import *
+        >>> db = partial(mongo_table, 'test', 'test', pk = 'key')
+        >>> c = db_cell(passthru, data = 1, db = db, key = 'old_key')()
+        >>> d = c.bind(key = 'key').go()
+        >>> assert d.pk == ['key']
+        >>> assert d._address in GRAPH
+        >>> e = d.bind(key2 = lambda key: key + '1')()
+        >>> assert e.pk == ['key', 'key2']
+        >>> assert e._address == (('key', 'key'), ('key2', 'key1'))
+        >>> assert e._address in GRAPH
+        """
+        db = self.get(_db)
+        if db is None:
+            return super(db_cell, self).bind(**bind)
+        else:
+            kw = self.db.keywords
+            for k in bind: # we want to be able to override tables/db/url
+                if k in ['db', 'table', 'url']:
+                    kw[k] = bind.pop(k)
+            pk = sorted(set(as_list(kw.get(_pk))) | set(bind.keys()))
+            kw[_pk] = pk
+            db = partial(db.func, *db.args, **kw)
+            res = Dict({key: self.get(key) for key in pk})
+            res = res(**bind)
+            res[_db] = db
+            return self + res
+
 
 def cell_push(nodes = None, exc = None):
     global UPDATED
     if nodes is None:
         nodes = UPDATED.keys()
-    children = descendants(get_DAG(), nodes, exc = exc)
+    children = [child for child in descendants(get_DAG(), nodes, exc = exc) if child is not None]
     for child in children:
         GRAPH[child] = (GRAPH[child] if child in GRAPH else get_cell(**dict(child))).go()
     for child in children:

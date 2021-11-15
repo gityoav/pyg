@@ -133,17 +133,17 @@ def cell_item(value, key = None):
     return _cell_item(value, key = key)
 
 @loop(list, tuple)
-def _cell_go(value, go, mode = 0, bind = None):
+def _cell_go(value, go, mode = 0):
     if isinstance(value, cell):
-        return value.go(go = go, mode = mode, bind = bind)
+        return value.go(go = go, mode = mode)
     else:
         if isinstance(value, dict):
-            return type(value)(**{k: _cell_go(v, go = go, mode = mode, bind = bind) for k, v in value.items()})
+            return type(value)(**{k: _cell_go(v, go = go, mode = mode) for k, v in value.items()})
         else:
             return value
 
 
-def cell_go(value, go = 0, mode = 0, bind = None):
+def cell_go(value, go = 0, mode = 0):
     """
     cell_go makes a cell run (using cell.go(go)) and returns the calculated cell.
     If value is not a cell, value is returned.    
@@ -173,20 +173,20 @@ def cell_go(value, go = 0, mode = 0, bind = None):
     >>> assert cell_go(c) == c(data = 3)
 
     """
-    return _cell_go(value, go = go, mode = mode, bind = bind)
+    return _cell_go(value, go = go, mode = mode)
 
 
 @loop(list, tuple)
-def _cell_load(value, mode, bind = None):
+def _cell_load(value, mode):
     if isinstance(value, cell):
-        return (value + bind if bind else value).load(mode)
+        return value.load(mode)
     else:
         if isinstance(value, dict):
-            return type(value)(**{k: _cell_load(v, mode, bind) for k, v in value.items()})
+            return type(value)(**{k: _cell_load(v, mode) for k, v in value.items()})
         else:
             return value
 
-def cell_load(value, mode = 0, bind = None):
+def cell_load(value, mode = 0):
     """
     loads a cell from a database or memory and return its updated values
 
@@ -196,16 +196,13 @@ def cell_load(value, mode = 0, bind = None):
         The cell (or anything else).
     mode: 1/0/-1
         Used by cell.load(mode) -1 = no loading, 0 = load if available, 1 = throw an exception in unable to load
-    bind: None or a dict
-        We want to be able to switch environments easily. E.g. we want to switch to yield curves on a particular date, or load cells with strategy = 'momentum'
-        bind variables are then added to the cell pre-loading to ensure we load the right environment
 
     :Returns:
     -------
     A loaded cell
     
     """
-    return _cell_load(value, mode = mode, bind = bind)
+    return _cell_load(value, mode = mode)
         
 
 class cell_func(wrapper):
@@ -288,7 +285,6 @@ class cell_func(wrapper):
         """
         go = kwargs.pop('go', 0)
         mode = kwargs.pop('mode', 0)
-        bind = kwargs.pop('bind', None)
         function_ = cell_item(cell_go(self.function, go))    
         callargs = getcallargs(function_, *args, **kwargs)
         spec = getargspec(function_)
@@ -296,19 +292,19 @@ class cell_func(wrapper):
         
         c = dict(callargs)
         varargs = c.pop(spec.varargs) if spec.varargs else []
-        loaded_args = cell_load(varargs, mode, bind = bind)
+        loaded_args = cell_load(varargs, mode)
         called_varargs = cell_go(loaded_args , go)
         itemized_varargs = cell_item(called_varargs, _data)
 
         varkw = c.pop(spec.varkw) if spec.varkw else {}
-        loaded_varkw = {k : v if k in self.unloaded else cell_load(v, mode, bind = bind) for k, v in varkw.items()}
+        loaded_varkw = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in varkw.items()}
         called_varkw = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_varkw.items()}
         itemized_varkw = {k : v if k in self.unitemized else _cell_item(v, self.relabels[k], True) if k in self.relabels else _cell_item(v, k) for k, v in called_varkw.items()}
 
         defs = spec.defaults if spec.defaults else []
         params = dict(zip(arg_names[-len(defs):], defs))
         params.update(c)
-        loaded_params = {k : v if k in self.unloaded else cell_load(v, mode, bind = bind) for k, v in params.items()}
+        loaded_params = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in params.items()}
         called_params = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_params.items()}
         itemized_params = {k : v if k in self.unitemized else _cell_item(v, self.relabels[k], True) if k in self.relabels else _cell_item(v, k) for k, v in called_params.items()}
         
@@ -389,6 +385,8 @@ class cell(dictattr):
             kwargs[_function] = function
         if output is not None:
             kwargs[_output] = output
+        if _function not in kwargs:
+            kwargs[_function] = None
         super(cell, self).__init__(**kwargs)
         self.pull()
 
@@ -469,7 +467,7 @@ class cell(dictattr):
 
         return self
             
-    def __call__(self, go = 0, mode = 0, bind = None, **kwargs):
+    def __call__(self, go = 0, mode = 0, **kwargs):
         """
         1) updates the cell using kwargs
         2) loads the data from the persistency layewr using mode policy
@@ -490,12 +488,12 @@ class cell(dictattr):
             the loaded & calculated cell.
 
         """
-        return (self + kwargs).load(mode = mode).go(go = go, mode = mode, bind = bind)
+        return (self + kwargs).load(mode = mode).go(go = go, mode = mode)
 
 
     @property
     def fullargspec(self):
-        return getargspec(self.function)
+        return None if self.function is None else getargspec(self.function) 
     
     @property
     def _args(self):
@@ -503,7 +501,7 @@ class cell(dictattr):
         returns the keyword arguments within the cell that MAY be presented to the cell.function 
         Does not 
         """
-        return getargs(self.function)
+        return [] if self.function is None else getargs(self.function) if callable(self.function) else []
     
     @property
     def _inputs(self):
@@ -554,6 +552,10 @@ class cell(dictattr):
         >>> assert c.sum == 5 and c.prod == 6 
         """
         return cell_output(self)
+    
+    @property
+    def _pk(self):
+        return self.get(_pk)        
 
     @property
     def _address(self):
@@ -569,7 +571,7 @@ class cell(dictattr):
         tuple
             returns a tuple representing the unique address of the cell.
         """
-        pk = self.get(_pk)
+        pk = self._pk
         if pk is None:
             return None
         elif is_strs(pk):
@@ -581,7 +583,8 @@ class cell(dictattr):
         res = self if self.function is None else self - self._output
         return type(self)(**cell_clear(dict(res)))
     
-    def _go(self, go = 0, mode = 0, bind = None):
+    
+    def _go(self, go = 0, mode = 0):
         """
 
         Parameters
@@ -590,8 +593,6 @@ class cell(dictattr):
             do we want to force the calculation? The default is 0.
         mode : int, optional
             The mode of loading for the parameters. The default is 0.
-        bind : dict, optional
-            parameters we want to bind to the cells that are inputs to the function. The default is None.
 
         Returns
         -------
@@ -606,16 +607,12 @@ class cell(dictattr):
                 msg = "get_cell(%s)()"%pairs
             else:
                 msg = str(address)
-            bind = bind or self.get('bind')
-            bind = {key : self[key] for key in as_list(bind)} if isinstance(bind, (str, list)) else bind
             logger.info(msg)
             kwargs = {arg: self[arg] for arg in self._args if arg in self}
             function = self.function if isinstance(self.function, cell_func) else cell_func(self.function)
             mode = 0 if mode == -1 else mode
-            res, called_args, called_kwargs = function(go = go-1 if go>0 else go, mode = mode, bind = bind, **kwargs)
+            res, called_args, called_kwargs = function(go = go-1 if go>0 else go, mode = mode, **kwargs)
             c = self + called_kwargs
-            if bind:
-                c = c + bind
             output = cell_output(c)
             if output is None:
                 c[_data] = res
@@ -632,8 +629,9 @@ class cell(dictattr):
             if address:
                 GRAPH[address] = self
             return self
+                    
 
-    def go(self, go = 1, mode = 0, bind = None, **kwargs):
+    def go(self, go = 1, mode = 0, **kwargs):
         """
         calculates the cell (if needed). By default, will then run cell.save() to save the cell. 
         If you don't want to save the output (perhaps you want to check it first), use cell._go()
@@ -689,7 +687,7 @@ class cell(dictattr):
 
 
         """
-        res = self._go(go = go, mode = mode, bind = bind, **kwargs)
+        res = self._go(go = go, mode = mode, **kwargs)
         return res.save()
     
     def copy(self):
@@ -724,7 +722,7 @@ class cell(dictattr):
             DESCRIPTION.
 
         """
-        inputs = cell_inputs(self, cell)
+        inputs = cell_inputs(self)
         if len(inputs) == 0:
             return self
         inputs = set([c._address for c in inputs])
@@ -752,6 +750,40 @@ class cell(dictattr):
         if me:
             del UPDATED[me]
         return res
+    
+    def bind(self, **bind):
+        """
+        bind adds key-words to the primary keys of a cell
+
+        :Parameters:
+        ----------
+        bind : dict
+            primary keys and their values.
+            The value can be a callable function, transforming existing values
+
+        :Returns:
+        -------
+        res : cell
+            a cell with extra binding as primary keys.
+
+        :Example:
+        ---------
+        >>> from pyg import *
+        >>> c = cell(a = 1)()
+        >>> assert GRAPH == {} # c has no primary keys so it is not in the graph
+        >>> d = c.bind(key = 'key').go()
+        >>> assert d.pk == ['key']
+        >>> assert d._address in GRAPH
+        >>> e = d.bind(key2 = lambda key: key + '1')()
+        >>> assert e.pk == ['key', 'key2']
+        >>> assert e._address == (('key', 'key'), ('key2', 'key1'))
+        >>> assert e._address in GRAPH
+        """
+        pk = sorted(set(as_list(self.get(_pk))) | set(bind.keys()))
+        res = Dict({key: self.get(key) for key in pk})
+        res = res(**bind)
+        res[_pk] = pk
+        return self + res
 
 def _cell_inputs(value, types):
     if isinstance(value, types):

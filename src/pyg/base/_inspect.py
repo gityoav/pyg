@@ -75,7 +75,7 @@ def getargs(function, n = 0):
     function : callable
         The function for  which we want the args
     n : int optional
-        get the name opf the args after allowing for n args to be set by *args. 
+        get the name of the args after allowing for first n args to be set by *args. 
         The default is 0.
 
     :Returns:
@@ -83,12 +83,14 @@ def getargs(function, n = 0):
     None or a list of args
 
     """
-    argspec = getargspec(function)
-    if argspec.varargs or n == 0:
-        return argspec.args
-    else:
-        return argspec.args[n:]
-    
+    try:
+        argspec = getargspec(function)
+        if argspec.varargs or n == 0:
+            return argspec.args
+        else:
+            return argspec.args[n:]
+    except Exception:
+        return []
 
 def getcallargs(function, *args, **kwargs):
     """
