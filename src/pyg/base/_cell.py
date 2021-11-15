@@ -610,7 +610,7 @@ class cell(dictattr):
             logger.info(msg)
             kwargs = {arg: self[arg] for arg in self._args if arg in self}
             function = self.function if isinstance(self.function, cell_func) else cell_func(self.function)
-            mode = max(mode, 0)
+            mode = 0 if mode == -1 else mode
             res, called_args, called_kwargs = function(go = go-1 if go>0 else go, mode = mode, bind = bind, **kwargs)
             c = self + called_kwargs
             if bind:
