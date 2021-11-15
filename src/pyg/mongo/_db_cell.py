@@ -207,7 +207,7 @@ class db_cell(cell):
         return doc
                 
         
-    def load(self, mode = 0):
+    def load(self, mode = 0, bind = None):
         """
         loads a document from the database and updates various keys.
         
@@ -250,10 +250,10 @@ class db_cell(cell):
                 mode = [0]
             if len(mode) == 1 or (len(mode)==2 and mode[0] == -1):
                 res = self.load(-1)
-                return res.load(mode[-1])
+                return res.load(mode[-1], bind = bind)
             else:
                 raise ValueError('mode can only be of the form [], [mode] or [-1, mode]')
-        if not callable(self.get(_db)):
+        if not callable(self.get(_db)): ### TO DO: NEED TO MOVE TO loading using cell.load() method
             return self
         db = self.db()
         pk = ulist(db.pk)
@@ -346,18 +346,23 @@ class db_cell(cell):
 
     def push(self):        
         me = self._address
-        cell_push(me)
-        return GRAPH[me]
+        res = self.go() # run me on my own as I am not part of the push
+        cell_push(me, exc = 0)
+        return res
 
-def cell_push(nodes = None):
+            
+
+def cell_push(nodes = None, exc = None):
     global UPDATED
     if nodes is None:
         nodes = UPDATED.keys()
-    children = descendants(get_DAG(), nodes)
+    children = descendants(get_DAG(), nodes, exc = exc)
     for child in children:
         GRAPH[child] = (GRAPH[child] if child in GRAPH else get_cell(**dict(child))).go()
     for child in children:
         del UPDATED[child]
+
+
 
 
 def cell_pull(nodes, types = cell):

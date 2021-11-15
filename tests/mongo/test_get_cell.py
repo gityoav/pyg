@@ -57,6 +57,21 @@ def test_get_cell_fail_on_history():
         get_cell('test', 'test', a = 1, _deleted = dt(2001))
 
 
+def test_cell_push_pull():
+    pk = 'key'
+    a = cell(add_, a = 1, b = 2, key = 'a', pk = pk)(mode = -1).pull()
+    b = cell(add_, a = a, b = 2, key = 'b', pk = pk)(mode = -1).pull()    
+    c = cell(add_, a = a, b = b, key = 'c', pk = pk)(mode = -1).pull()
+    d = cell(add_, a = c, b = b, key = 'd', pk = pk)(mode = -1).pull()
+    e = cell(add_, a = d, b = b, key = 'e', pk = pk)(mode = -1).pull()
+    assert a._address in GRAPH
+    assert get_data(key = 'e') == 18
+    a.a = 6
+    a = a.push()
+    assert a.data == 8
+    assert e.load().data == 38
+    assert get_data(key = 'e') == 38
+
 def test_db_cell_push_pull():
     db = partial(mongo_table, db = 'test', table = 'test', pk = 'key')
     db().raw.drop()

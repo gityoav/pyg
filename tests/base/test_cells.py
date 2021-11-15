@@ -1,7 +1,7 @@
 from pyg import cell, cell_func, dictattr, dt, getargspec, passthru, add_
 from pyg.base._cell import cell_output, cell_item, cell_inputs, UPDATED
 import pytest
-from pyg import get_cell, cell_push, cell_pull
+from pyg import get_cell, cell_push, cell_pull, GRAPH
 
 def test_cell():
     c = cell(lambda a:a+1)
@@ -182,6 +182,7 @@ def test_cell_inputs():
 def test_cell_push_and_updated():
     a = cell(passthru, data = 1, pk = 'i', i = 0)().pull()
     b = cell(passthru, data = 2, pk = 'i', i = 1)().pull()
+    assert a._address in GRAPH and b._address in GRAPH
     for i in range(2, 10):
         c = cell(add_, a = a, b = b, pk = 'i', i = i)().pull()
         a = b
