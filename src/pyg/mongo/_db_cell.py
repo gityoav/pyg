@@ -65,8 +65,8 @@ def _load_asof(table, kwargs, deleted):
     t = table.inc(kwargs)
     if len(t) == 0:
         raise ValueError('no cells found matching %s'%kwargs)
-    live = t(deleted = None)
-    if deleted is None:
+    live = t(deleted = False)
+    if deleted in (True, None): # we just want live values
         if len(live) == 0:
             raise ValueError('no undeleted cells found matching %s'%kwargs)        
         elif len(live)>1:
@@ -79,8 +79,12 @@ def _load_asof(table, kwargs, deleted):
                 raise ValueError('no undeleted cells found matching %s'%kwargs)        
             elif len(live)>1:
                 raise ValueError('multiple cells found matching %s'%kwargs)
+            elif deleted is True:
+                raise ValueError('No deleted cells are avaialble but there is a live document matching %s. set delete = False to fetch it'%kwargs)
             res = live[0]
         else:
+            if len(history) > 1 and deleted is True:
+                raise ValueError('multiple historic cells are avaialble %s. set delete = DATE to find the cell on that date'%kwargs)
             res = history.sort('deleted')[0]
     return res
 
@@ -135,7 +139,7 @@ class db_cell(cell):
     >>> 601e732e0ef13bec9cd8a6cb|39 |james|johnson |None
     >>> 601e73db0ef13bec9cd8a6d4|46 |anna |abramzon|None
     >>> 601e73db0ef13bec9cd8a6d7|25 |bob  |brown   |True
-    >>> people().raw.drop()    
+    >>> people().reset.drop()    
 
     """
 
@@ -275,7 +279,7 @@ class db_cell(cell):
             return self
         if address not in GRAPH:
             if is_date(mode):
-                GRAPH[address] = _load_asof(db.raw, kwargs, deleted = mode)
+                GRAPH[address] = _load_asof(db.reset, kwargs, deleted = mode)
             else:
                 try:
                     GRAPH[address] = db[kwargs]
@@ -449,7 +453,7 @@ def get_data(table = None, db = None, url = None, deleted = None, **kwargs):
     ---------
     >>> from pyg import *
     >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
-    >>> people().raw.drop()
+    >>> people().reset.drop()
     >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
     >>> assert get_data('test','test', surname = 'brown') is None
         

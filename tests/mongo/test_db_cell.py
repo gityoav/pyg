@@ -272,7 +272,7 @@ def test_db_cell_point_in_time():
     assert get_cell('test', 'test', key = 'z').data == 800
 
     
-    assert db_cell(db = db, key = 'z').load(mode = dt(1999)).data == 8
+    assert db_cell(db = db, key = 'z').load(-1).load(mode = dt(1999)).data == 8
     assert db_cell(db = db, key = 'z').load(mode = [dt(2001)]).data == 80
     assert db_cell(db = db, key = 'z').load(mode = [0]).data == 800
     assert db_cell(db = db, key = 'z').load(mode = []).data == 800
