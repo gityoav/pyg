@@ -1,6 +1,11 @@
-from pyg import mongo_table, dictable, Dict
+from pyg import mongo_table, dictable, Dict, passthru
 from pyg import * 
 import pytest
+
+def test_mongo_reader_allows_passthru():
+    c = mongo_table('test', 'test')
+    assert c._reader(False) == [passthru]    
+    assert c._reader(passthru) == [passthru]    
 
 def test_mongo_cursor():
     c = mongo_table('test', 'test')
@@ -78,6 +83,8 @@ def test_mongo_cursor():
 
     assert Dict(c.sort('a', 'b')[['a','b']][0]) - '_id' == Dict(a = 0, b = 1)
     del c.sort('a', 'b')[0]
+    self = c.sort('a', 'b') 
+
     with pytest.raises(ValueError):
         c.find_one(a = 0, b = 1)
 
@@ -103,5 +110,6 @@ def test_cursor_bits():
     c = c.insert_many(d)
     assert c.docs() == dictable(doc = list(c))
     assert dictable(c) == dictable(c.docs().doc)
-    assert sorted(c.keys()) == ['_id', '_obj', 'a', 'b']
+    assert sorted(c.keys()) == ['_id', 'a', 'b']
+    assert sorted(c(reader = False).keys()) == ['_id', '_obj', 'a', 'b']
 

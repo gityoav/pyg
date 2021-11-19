@@ -1,6 +1,9 @@
 import pandas as pd; import numpy as np
 from functools import partial
-from pyg import db_cell, cell, dt, mongo_table, eq, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, cell_clear, v2na, add_, sub_, div_, ewma, ewmrms, GRAPH
+from pyg.base._cell import _pk
+from pyg import db_cell, cell, dt, mongo_table, eq, GRAPH, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, cell_clear, \
+    v2na, add_, sub_, div_, ewma, ewmrms
+
 from operator import add
 from functools import partial
 from pyg import *
@@ -15,38 +18,38 @@ millisec = dt.timedelta(microseconds = 1000)
 def test_db_cell_save():
     db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key')    
     d = db()    
-    d.raw.drop()
+
+    d.reset.drop()
     self = db_cell(pd.Series, data  = dict(a=1,b=2), output = 'a', db = db, key = 'a')
     self = self.go()
-    res = d.inc(key = 'a')[0] - '_pk'
+    
+    res = d.inc(key = 'a')[0] - _pk
     assert eq(res - updated, self - updated)
-
 
     a = pd.DataFrame(dict(a = [1,2,3], b= [4,5,6])); b = 3
     self = db_cell(presync(f), a = a, b = b, db = db, key = 'b')
     self = self.go()
-    res = d.inc(key = 'b')[0] - '_pk'
+    res = d.inc(key = 'b')[0] - _pk
     assert eq(res - updated, self - updated)
     assert self.updated - res.updated < millisec
-    d.raw.drop()
+    d.reset.drop()
 
 def test_db_cell_save_root():
-    db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key', writer = '.parquet', root = 'c:/temp/%key')    
-    assert db().writer == [parquet_write, encode]
+    db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key', writer = 'c:/temp/%key.parquet')    
     d = db()    
-    d.raw.drop()
+    d.reset.drop()
     a = pd.DataFrame(dict(a = [1,2,3], b= [4,5,6]), index = drange(2)); b = pd.DataFrame(np.random.normal(0,1,(3,2)), columns = ['a','b'], index = drange(2))
     self = db_cell(presync(f), a = a, b = b, db = db, key = 'b')
     self = self.go()
-    res = d.inc(key = 'b')[0] - '_pk'
-    assert eq(res - 'updated', self - 'updated')
+    res = d.inc(key = 'b')[0] - _pk
+    assert eq(res - updated , self - updated )
     assert self.updated - res.updated < millisec
     path = 'c:/temp/b/data.parquet'
     assert eq(pd_read_parquet(path), res.data)    
     res = db_cell(db = db, key = 'b').load()
     assert eq(res, self)    
     GRAPH = {} # not from cache please
-    res = db_cell(db = db, key = 'b').load() - '_pk'
+    res = db_cell(db = db, key = 'b').load() - _pk
     assert eq(res, self)    
 
 def test_db_save():
@@ -54,7 +57,7 @@ def test_db_save():
     missing = db_cell(data = 1, db = db)
     d = db()    
     assert db_save(missing) == missing
-    d.raw.drop()
+    d.reset.drop()
     value = db_cell(data = 1, key = 'a', db = db)
     assert len(d) == 0
     doc = db_save(value)
@@ -83,7 +86,7 @@ def test_db_save():
 def test_db_cell_clear():
     db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key')    
     d = db()    
-    d.raw.drop()
+    d.reset.drop()
     a = db_cell(lambda a, b: a+b, a = 1, b = 2, key = 'a', db = db)
     b = db_cell(lambda a, b: a+b, a = 1, b = 2, key = 'b', db = db)
     c = db_cell(lambda a, b: a+b, a = a, b = b, key = 'c', db = db)
@@ -104,7 +107,7 @@ def test_db_cell_clear():
 
 def test_db_cell_clear_mix():
     db = partial(mongo_table, db = 'temp', table = 'test_db_cell_clear_mix', pk = 'key')    
-    db().raw.drop()
+    db().reset.drop()
     a = db_cell(add_, a = 1, b = 2, key = 'a', db = db)
     b = db_cell(add_, a = 1, b = 2, key = 'b', pk = ['key'])
     c = db_cell(add_, a = a, b = b, key = 'c')
@@ -115,7 +118,7 @@ def test_db_cell_clear_mix():
     assert x.a.load().data == 3
     y = x.go(3)
     assert y.data == d.data
-    db().raw.drop()
+    db().reset.drop()
 
 
 def test_db_cell_address():
@@ -127,7 +130,7 @@ def test_db_cell_address():
 def test_db_load():
     db = partial(mongo_table, db = 'temp', table = 'test_db_load', pk = 'key')    
     d = db()    
-    d.raw.drop()
+    d.reset.drop()
     a = db_cell(lambda a, b: a+b, a = 1, b = 2, key = 'a', db = db)
     assert a.run()
     b = db_cell(lambda a, b: a+b, a = 1, b = 2, key = 'b', db = db)
@@ -173,7 +176,7 @@ def test_db_load():
 
 def test_db_cell_cache_on_cell_func():
     db = partial(mongo_table, db = 'test', table = 'test', pk = 'key')    
-    db().raw.drop()
+    db().reset.drop()
     a = db_cell(dt, key = 'a', db = db)    
     b = cell(lambda x: x, x=a)
     c = cell(lambda x: x, x=a)
@@ -188,7 +191,7 @@ def add1(x):
 
 def test_db_cell_bare():
     db = partial(mongo_table, db = 'test', table = 'test', pk = 'key')
-    db().raw.drop()
+    db().reset.drop()
     c = db_cell()
     assert cell_clear(c) == c
     c = db_cell(lambda x: x+1, x = 1)
@@ -204,7 +207,7 @@ def test_db_cell_bare():
     d = db_cell(add1, x = c, db = db, key = 'key2')
     d = d()
     assert (db().inc(key = 'key2')[0] - 'data').go(1).data == 5
-    db().raw.drop()
+    db().reset.drop()
 
     
 def fake_ts(ticker):
@@ -212,7 +215,7 @@ def fake_ts(ticker):
 
 def test_db_cell_network():
     db = partial(mongo_table, db = 'test', table = 'test', pk = ['key'])
-    db().raw.drop()
+    db().reset.drop()
     appl = db_cell(fake_ts, ticker = 'appl', key = 'appl_rtn', db = db)()
     a = cell(ewma, a = appl, n = 30)
     b = cell(ewma, a = appl, n = 50)
@@ -226,12 +229,12 @@ def test_db_cell_network():
     assert not 'data' in loaded.a
     assert eq(loaded.data, f.data)
     assert eq((loaded -'data').go().data, f.data)
-    db().raw.drop()
+    db().reset.drop()
     
     
 def test_db_cell_point_in_time():
     db = partial(mongo_table, db = 'test', table = 'test', pk = ['key'])
-    db().raw.drop()
+    db().reset.drop()
 
     ## pre 2000
     x0 = db_cell(add_, a = 1, b = 2, key = 'x', db = db).go()
@@ -239,7 +242,7 @@ def test_db_cell_point_in_time():
     z0 = db_cell(add_, a = x0, b = y0, key = 'z', db = db).go()
 
     ## now delete
-    db().raw.inc(q.deleted.not_exists).set(deleted = dt(2000))
+    db().reset.inc(q.deleted.not_exists).set(deleted = dt(2000))
     assert len(db()) == 0
 
     ## now try and grab...
@@ -255,7 +258,7 @@ def test_db_cell_point_in_time():
     y1 = db_cell(add_, a = x1, b = 20, key = 'y', db = db)(mode = -1)
     z1 = db_cell(add_, a = x1, b = y1, key = 'z', db = db)(mode = -1)
     
-    db().raw.inc(q.deleted.not_exists).set(deleted = dt(2002))
+    db().reset.inc(q.deleted.not_exists).set(deleted = dt(2002))
 
     assert get_cell('test', 'test', key = 'z', deleted = dt(1999)).data == 8
     assert get_cell('test', 'test', key = 'z', deleted = dt(2001)).data == 80
@@ -269,7 +272,7 @@ def test_db_cell_point_in_time():
     assert get_cell('test', 'test', key = 'z').data == 800
 
     
-    assert db_cell(db = db, key = 'z').load(mode = [dt(1999)]).data == 8
+    assert db_cell(db = db, key = 'z').load(mode = dt(1999)).data == 8
     assert db_cell(db = db, key = 'z').load(mode = [dt(2001)]).data == 80
     assert db_cell(db = db, key = 'z').load(mode = [0]).data == 800
     assert db_cell(db = db, key = 'z').load(mode = []).data == 800
@@ -288,5 +291,5 @@ def test_db_cell_point_in_time():
     
     full_recalc_using_live_data_before_we_messed_with_it = db_cell(db = db, key = 'z')(go=-1, mode = [t0])
     assert full_recalc_using_live_data_before_we_messed_with_it.data == 800    
-    db().raw.drop()    
+    db().reset.drop()    
     

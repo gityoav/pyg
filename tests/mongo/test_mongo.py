@@ -1,5 +1,5 @@
 from pyg.base import ulist, dictable,Dict, pd_read_parquet, eq
-from pyg.mongo import mongo_reader, mongo_cursor, q, mongo_table, mongo_pk_cursor, mongo_pk_reader
+from pyg.mongo import mongo_reader, mongo_cursor, q, mongo_table, mongo_pk_cursor
 from pyg import *
 import numpy as np; import pandas as pd
 import jsonpickle as jp
@@ -44,7 +44,7 @@ def test_mongo_pk_cursor():
     
     assert self[dict(key=1)]['other_data'] == 3
     assert self[dict(key=1)]['data'] == 2
-    self.raw.drop()
+    self.reset.drop()
     assert len(t) == 0
 
 
@@ -60,7 +60,7 @@ def test_mongo_pk_cursor_multiple_keys():
     self._write(doc)
     self.update_one(doc)
     assert type(self[0]) == Dict
-    self.raw.drop()
+    self.reset.drop()
 
     
     
@@ -74,13 +74,8 @@ def test_mongo_table_mode():
 
     w = mongo_table('test', 'test', mode = mongo_cursor)
     assert isinstance(w, mongo_cursor)
-
-    mongo_table('test', 'test', pk = 'key', mode = mongo_pk_reader)
-    with pytest.raises(TypeError):
-        db =  table = 'test'; mode = mongo_pk_reader
-        mongo_table(table, db, mode = mode)
     
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         mongo_table('test', 'test', mode = mongo_pk_cursor)
 
 

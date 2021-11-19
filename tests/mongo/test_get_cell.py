@@ -23,7 +23,7 @@ def test_get_cell():
     
 def test_get_cell_with_version_control():
     db = partial(mongo_table, db = 'test', table = 'test', pk = ['a', 'b'])
-    db().raw.drop()
+    db().reset.drop()
     d = (dictable(a = [1,2,3]) * dict(b = [1,2,3]))
     c = db_cell(function = mul_, db = db)
     _ = d[lambda a, b: c(a = a, b = b)()]
@@ -42,7 +42,7 @@ def test_get_cell_with_version_control():
         get_cell('test','test', a = 1, b = 1)
 
     assert get_cell('test','test', a = 1, b = 1, deleted = t).data == 1
-    db().raw.drop()
+    db().reset.drop()
 
 
 def test_get_cell_fail_on_history():
@@ -74,7 +74,7 @@ def test_cell_push_pull():
 
 def test_db_cell_push_pull():
     db = partial(mongo_table, db = 'test', table = 'test', pk = 'key')
-    db().raw.drop()
+    db().reset.drop()
     a = db_cell(add_, a = 1, b = 2, key = 'a', db = db)(mode = -1)
     b = db_cell(add_, a = a, b = 2, key = 'b', db = db)(mode = -1)    
     c = db_cell(add_, a = a, b = b, key = 'c', db = db)(mode = -1)
@@ -91,11 +91,11 @@ def test_db_cell_push_pull():
     assert GRAPH[e._address].data == 44
     assert e.data == 18
     assert e.load().data == 44
-    db().raw.drop()
+    db().reset.drop()
 
 def test_db_cell_queued_push_pull():
     db = partial(mongo_table, db = 'test', table = 'test', pk = 'key')
-    db().raw.drop()
+    db().reset.drop()
     a = db_cell(add_, a = 1, b = 2, key = 'a', db = db)(mode = -1)
     b = db_cell(add_, a = a, b = 2, key = 'b', db = db)(mode = -1)  
     c = db_cell(add_, a = a, b = b, key = 'c', db = db)(mode = -1)
@@ -108,7 +108,7 @@ def test_db_cell_queued_push_pull():
     b.b = 4
     b = b.push()
     assert get_data('test', 'test', key = 'e') == 44
-    db().raw.drop()
+    db().reset.drop()
     a = db_cell(add_, a = 1, b = 2, key = 'a', db = db)(mode = -1)
     b = db_cell(add_, a = a, b = 2, key = 'b', db = db)(mode = -1)  
     c = db_cell(add_, a = a, b = b, key = 'c', db = db)(mode = -1)
@@ -123,4 +123,4 @@ def test_db_cell_queued_push_pull():
     cell_push()
     assert get_data('test', 'test', key = 'e') == 44
     assert e.load().data == 44    
-    db().raw.drop()
+    db().reset.drop()
