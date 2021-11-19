@@ -14,11 +14,12 @@ import datetime
 
 _data = 'data'
 _output = 'output'
+_updated = 'updated'
 _function = 'function'
 _bind = 'bind'
 _pk = 'pk'
 
-__all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_output', 'cell_clear']
+__all__ = ['cell', 'cell_item', 'cell_go', 'cell_load', 'cell_func', 'cell_output', 'cell_clear', ]
 
 GRAPH = {}
 _GAD = {} ## a dict from child to parents, hence GAD as opposed to DAG
@@ -141,7 +142,6 @@ def _cell_go(value, go, mode = 0):
             return type(value)(**{k: _cell_go(v, go = go, mode = mode) for k, v in value.items()})
         else:
             return value
-
 
 def cell_go(value, go = 0, mode = 0):
     """
@@ -317,7 +317,6 @@ class cell_func(wrapper):
     def output(self):
         return getattr(self.function, _output, None)
         
-        
 
 def is_pairs(pairs):
     """
@@ -378,6 +377,8 @@ class cell(dictattr):
     
     
     """
+    _func = cell_func 
+    
     def __init__(self, function = None, output = None, **kwargs):
         if (len(kwargs) == 0 and isinstance(function, (Dict, cell))) or (isinstance(function,dict) and not callable(function)): 
             kwargs.update(function)
@@ -456,15 +457,17 @@ class cell(dictattr):
             return self
         if address in GRAPH:
             saved = GRAPH[address]
-            res = tree_update(self, dict(saved), ignore = [None])
+            if saved.get(_updated) is None and self.get(_updated) is None:
+                res = tree_update(self, dict(saved), ignore = [None])
+            elif saved.get(_updated) is not None and (self.get(_updated) is None or saved.get(_updated) > self.get(_updated)):
+                res = tree_update(self, dict(saved), ignore = [None])
+            else:
+                res = tree_update(saved, dict(self), ignore = [None])
             if self.function is None:
                 res.function = saved.function
             return res
         elif mode == 1:
             raise ValueError('mode = 1 and yet %s not found in the GRAPH'%address)
-        return self
-
-
         return self
             
     def __call__(self, go = 0, mode = 0, **kwargs):
@@ -609,7 +612,7 @@ class cell(dictattr):
                 msg = str(address)
             logger.info(msg)
             kwargs = {arg: self[arg] for arg in self._args if arg in self}
-            function = self.function if isinstance(self.function, cell_func) else cell_func(self.function)
+            function = self.function if isinstance(self.function, self._func) else self._func(self.function)
             mode = 0 if mode == -1 else mode
             res, called_args, called_kwargs = function(go = go-1 if go>0 else go, mode = mode, **kwargs)
             c = self + called_kwargs
@@ -687,7 +690,12 @@ class cell(dictattr):
 
 
         """
-        res = self._go(go = go, mode = mode, **kwargs)
+        res = (self + kwargs)._go(go = go, mode = mode)
+        address = res._address
+        if address in UPDATED:
+            res[_updated] = UPDATED[address] 
+        else: 
+            res[_updated] = datetime.datetime.now()
         return res.save()
     
     def copy(self):
@@ -784,6 +792,8 @@ class cell(dictattr):
         res = res(**bind)
         res[_pk] = pk
         return self + res
+    
+
 
 def _cell_inputs(value, types):
     if isinstance(value, types):

@@ -1,7 +1,8 @@
-from pyg import cell, cell_func, dictattr, dt, getargspec, passthru, add_
-from pyg.base._cell import cell_output, cell_item, cell_inputs, UPDATED
+from pyg import acell, cell, cell_func, dictattr, dt, getargspec, passthru, add_
+from pyg.base._cell import cell_output, cell_item, cell_inputs, UPDATED, _updated
 import pytest
 from pyg import get_cell, cell_push, cell_pull, GRAPH
+from pyg import * 
 
 def test_cell():
     c = cell(lambda a:a+1)
@@ -16,7 +17,7 @@ def test_cell():
 
 def test_cell_go():
     c = cell(a = 1)
-    assert c.go() == c    
+    assert c.go()- _updated == c    
     a = cell(lambda a: a +1 , a = 1, output = 'b')
     a = a.go()    
     assert a.b == 2
@@ -45,24 +46,24 @@ def test_cell_func_cell():
     b = cell(b = 2)    
     c = cell(f, a = a, b = b)
     c = c.go()
-    assert c.data == cell(a = 1) + cell(b=2)
+    assert c.data - _updated == cell(a = 1) + cell(b=2)
     a = cell(lambda a: a * 3, a = 1)
     b = cell(lambda b: b * 3, b = 2)    
     c = cell(f, a = a, b = b)
     c = c.go()
-    assert c.data == a.go() + b.go()
+    assert c.data - _updated == (a.go() + b.go()) - _updated
     f = cell_func(lambda a, b: a+b, unitemized = ['a', 'b'], uncalled = ['a', 'b'])
     c = cell(f, a = a, b = b)
     c = c.go()
-    assert c.data == a + b
+    assert c.data - _updated == (a + b) - _updated
     f = cell_func(lambda a, b: a+b)
     c = cell(f, a = a, b = b)
     c = c.go()
-    assert c.data == a.go().data + b.go().data
+    assert c.data == (a.go().data + b.go().data)
     f = cell_func(lambda a, b: a+b, uncalled = ['a', 'b'])
     c = cell(f, a = a, b = b)
     c = c.go()
-    assert c.data == a.a + b.b
+    assert c.data == (a.a + b.b) 
 
 
 def test_cell_func_relabel():
@@ -199,7 +200,4 @@ def test_cell_push_and_updated():
     assert UPDATED == {}
 
 
-        
-    
-    
     

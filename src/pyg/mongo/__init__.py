@@ -2,10 +2,13 @@
 
 from pyg.mongo._q import Q, q, mdict
 from pyg.mongo._types import is_collection, is_cursor
-from pyg.mongo._reader import mongo_reader, clone_cursor
-from pyg.mongo._cursor import mongo_cursor
-from pyg.mongo._pk_reader import mongo_pk_reader
-from pyg.mongo._pk_cursor import mongo_pk_cursor
+from pyg.mongo._reader import mongo_reader
+from pyg.mongo._cursor import mongo_cursor, mongo_pk_cursor
+
+from pyg.mongo._async_reader import mongo_async_reader
+from pyg.mongo._async_cursor import mongo_async_cursor, mongo_async_pk_cursor
+
+
 from pyg.mongo._table import mongo_table
 from pyg.mongo._encoders import root_path, pd_to_csv, pd_read_csv, parquet_encode, parquet_write, csv_encode, csv_write
 

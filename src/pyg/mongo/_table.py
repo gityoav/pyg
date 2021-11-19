@@ -1,28 +1,66 @@
 from pyg.base import is_str
+from pyg.mongo._q import _deleted
 from pyg.mongo._reader import mongo_reader
-from pyg.mongo._cursor import mongo_cursor
-from pyg.mongo._pk_reader import mongo_pk_reader
-from pyg.mongo._pk_cursor import mongo_pk_cursor
+from pyg.mongo._cursor import mongo_cursor, mongo_pk_cursor
+
+from pyg.mongo._async_reader import mongo_async_reader
+from pyg.mongo._async_cursor import mongo_async_cursor, mongo_async_pk_cursor
+
 from pymongo import MongoClient
+from motor import MotorClient
 
 __all__ = ['mongo_table']
 
-def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, mode = 'w', **kwargs):
+
+def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, mode = 'w', **kwargs):    
+    """
+    :Example:
+    ---------
+    from pyg import *
+    from pymongo import MongoClient
+    from motor import MotorClient
+
+    table = db = 'test'
+    pk = 'key'
+    url = reader = writer = None    
+    mode = 'aw'    
+    kwargs = {}
+    client = MotorClient(url)
+    c = client[db][table]
+
+    isinstance(cursor, ())
+    res = obj(c, pk = pk, writer = writer, reader = reader, **kwargs)
+    
+    await c.insert_one(dict(a = 1))
+    await c.create_index(dict(a = 1))
+
+    """ 
+    if mode is None:
+        mode = 'w'
     if is_str(mode):
         mode = mode.lower()
-        if mode.startswith('r'):
-            obj = mongo_reader if pk is None else mongo_pk_reader
-        elif mode.startswith('w'):
-            obj = mongo_cursor if pk is None else mongo_pk_cursor
+        if False:
+            pass
+        elif mode == '' or mode.startswith('w'):
+            obj = mongo_cursor if pk is None else mongo_pk_cursor 
+        elif mode == 'a' or mode.startswith('aw'):
+            obj = mongo_async_cursor #if pk is None else mongo_async_pk_cursor 
+        elif mode.startswith('r'):
+            obj = mongo_reader 
+        elif mode.startswith('ar'):
+            obj = mongo_async_reader 
         else:
             raise ValueError('please specify read/write for mode')
     else:
         obj = mode
-    c = MongoClient(url)[db][table]
+    if isinstance(obj, (mongo_async_reader, mongo_async_cursor)):
+        client = MotorClient(url)
+    else:
+        client = MongoClient(url)
+    c = client[db][table]
     res = obj(c, pk = pk, writer = writer, reader = reader, **kwargs)
-    if len(res) == 0 and isinstance(res, mongo_pk_reader):
-        res.create_index()
+    if isinstance(res, (mongo_reader)) and len(res) == 0:
+         res.create_index()
     return res
 
         
-    

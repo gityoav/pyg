@@ -1,17 +1,17 @@
+from pyg.base import is_strs, is_dict, Dict, waiter, passthru, tree_update, is_int, as_list, logger, ulist
+from pyg.mongo._q import _set, _id, _unset, _rename, _deleted
+from pyg.mongo._async_reader import mongo_async_reader
+from pyg.mongo._base_reader import _pk, _dict1
 
-from pyg.base import logger, passthru, tree_update, dictable
-from pyg.base import zipper, is_strs, is_dict, Dict, is_dictable, is_int, as_list, ulist
-from pyg.mongo._q import _set, _id, _unset, _rename, _deleted, _data
-from pyg.mongo._reader import mongo_reader
-from pyg.mongo._base_reader import _pk, _items1, _dict1
 import datetime
 
 
-__all__ = ['mongo_cursor', 'mongo_pk_cursor']
+__all__ = ['mongo_async_cursor', 'mongo_async_pk_cursor']
 
-class mongo_cursor(mongo_reader):
+
+class mongo_async_cursor(mongo_async_reader):
     """
-    mongo_cursor is a souped-up combination of mongo.Cursor and mongo.Collection with a simple API.
+    mongo_async_cursor is a souped-up combination of mongo.Cursor and mongo.Collection with a simple API.
 
     :Parameters:
     ----------------
@@ -102,7 +102,7 @@ class mongo_cursor(mongo_reader):
     
     
     """
-    def delete_many(self, *args, **kwargs):
+    async def delete_many(self, *args, **kwargs):
         """
         Equivalent to drop: deletes all documents the cursor currently points to.
         
@@ -115,15 +115,15 @@ class mongo_cursor(mongo_reader):
         itself
         """
         target = self.inc(*args, **kwargs)
-        n = target.count()
-        spec = target._spec
-        logger.info('INFO: deleting %i documents based on %s'%(n, spec))
+        n = await target.count()
+        logger.info('INFO: deleting %i documents based on %s'%(n, target._spec))
         if n:
-            target.collection.delete_many(spec)
+            await target.collection.delete_many(target._spec)
         return self
 
+    drop = delete_many
         
-    def delete_one(self, *args, **kwargs):
+    async def delete_one(self, *args, **kwargs):
         """
         drops a specific record after verifying exactly one exists.
 
@@ -137,13 +137,11 @@ class mongo_cursor(mongo_reader):
         itself
 
         """
-        c = self.find_one(*args, **kwargs)
-        c.collection.delete_one(c._spec)
+        c = await self.find_one(*args, **kwargs)
+        await c.collection.delete_one(c._spec)
         return self
-
-    drop = delete_many
     
-    def _update_one(self, doc):
+    async def _update_one(self, doc):
         """
         Uses the doc to find the existing document matching the doc. Then updates it. Throws an exception if no document found
         
@@ -152,12 +150,12 @@ class mongo_cursor(mongo_reader):
         the updated document
         """
         update = self._write(doc)
-        c = self.find_one(doc = update)
+        c = await self.find_one(doc = update)
         update.pop(_id, None)
-        self.collection.update_one(c._spec, {_set: update})
-        return c[0]
+        await self.collection.update_one(c._spec, {_set: update})
+        return await c[0]
     
-    def update_one(self, doc, upsert = True):
+    async def update_one(self, doc, upsert = True):
         """
         - updates a document if an _id is present in doc.
         - insert a document if an _id is not present and upsert is true
@@ -176,11 +174,11 @@ class mongo_cursor(mongo_reader):
 
         """
         if upsert:
-            return self.insert_one(doc)
+            return await self.insert_one(doc)
         else:
-            return self._update_one(doc)
-    
-    def update_many(self, doc, upsert  = False):
+            return await self._update_one(doc)
+        
+    async def update_many(self, doc, upsert = False):
         """
         updates all documents in current cursor based on the doc. The two are equivalent:
         
@@ -200,11 +198,7 @@ class mongo_cursor(mongo_reader):
         self.collection.update_many(self._spec, {_set : update})
         return self
     
-    def __setitem__(self, key, value):
-        update = dict(zipper(key, value))
-        self.set(**update)
-    
-    def set(self, **kwargs):
+    async def set(self, **kwargs):
         """
         updates all documents in current cursor based on the kwargs. 
         It is similar to update_many but supports also functions
@@ -233,30 +227,39 @@ class mongo_cursor(mongo_reader):
         """
         static = {key: value for key, value in kwargs.items() if not callable(value)}
         if len(static) == len(kwargs):
-            self.update_many(static)
+            await self.update_many(static)
         else:
-            for row in self:
+            for row in await self.cursor.to_list(await self.count()):
                 tp = type(row)
-                row = Dict(row) if not isinstance(row, Dict) else row
-                doc = tp(row(**kwargs))
-                self.update_one(doc)
+                res = Dict(row) if not isinstance(row, Dict) else row
+                doc = tp(res(**kwargs))
+                await self.update_one(doc)
+        return self
+    
+    async def delete(self, item):
+        """
+        performs equivalent of delete item:
+        
+        c.delete('a') # removes 'a' keys from all documents
+        c.delete(0)  # removes the first document in cursor
+        c.delete(dict(a = 5)) # removes the UNIQUE document matching the 
+        
+        
+        """
+        if isinstance(item, int):
+            spec = {_id : self(projection = _id).read(item)[_id]}
+            await self.collection.delete_one(spec)
+        elif is_strs(item):
+            await self.collection.update_many(self._spec, {_unset: _dict1(item)})
+        elif is_dict(item):
+            await self.find(item).delete_one()
         return self
 
-    def rename(self, **kwargs):
-        self.collection.update_many(self._spec, {_rename : kwargs})
+    async def rename(self, **kwargs):
+        await self.collection.update_many(self._spec, {_rename : kwargs})
         return self
-    
-    def delete(self, item):
-        if isinstance(item, int):
-            self.collection.delete_one({_id : self[item][_id]})
-        elif is_strs(item):
-            self.collection.update_many(self._spec, {_unset: _dict1(item)})
-        elif is_dict(item):
-            self.find(item).delete_one()
-    
-    __delitem__ = delete
-    
-    def insert_one(self, doc):
+
+    async def insert_one(self, doc):
         """
         inserts/updates a single document. 
         
@@ -295,14 +298,15 @@ class mongo_cursor(mongo_reader):
         >>> t.drop()
         """
         if _id in doc:
-            return self._update_one(doc)
+            return await self._update_one(doc)
         else:
             res = doc.copy()
             new = self._write(doc)
-            res[_id] = self.collection.insert_one(new).inserted_id
+            inserted = await self.collection.insert_one(new)
+            res[_id] = inserted.inserted_id
             return res
 
-    def insert_many(self, table):
+    async def insert_many(self, table):
         """
         inserts multiple documents into the collection
 
@@ -352,49 +356,45 @@ class mongo_cursor(mongo_reader):
         with_ids = [self._write(doc) for doc in table if _id in doc]
         no_ids = [self._write(doc) for doc in table if _id not in doc]
         if len(no_ids)>0:
-            self.collection.insert_many(no_ids)
+            await self.collection.insert_many(no_ids)
         for doc in with_ids:
             spec = {_id: doc.pop(_id)}
-            self.collection.update_one(spec, {_set: doc})
+            await self.collection.update_one(spec, {_set: doc})
         return self
-
-    def __add__(self, item):
-        if is_dict(item) and not is_dictable(item):
-            self.insert_one(item)
-        else:
-            self.insert_many(item)
-        return self
-
+            
 
     def __call__(self, **kwargs):
         callargs = self._callargs(**kwargs)
-        obj = mongo_cursor if not callargs.get(_pk) else mongo_pk_cursor
+        obj = mongo_async_cursor if not callargs.get(_pk) else mongo_async_pk_cursor
         return obj(**callargs)
         
 
-class mongo_pk_cursor(mongo_cursor):
+class mongo_async_pk_cursor(mongo_async_cursor):
     """
     The logic for reading with/without pk is similar
     for insertion though, the two are VERY different
     
     """
-    def delete_one(self, doc = {}):
-        return self.find_one(doc).delete_many()
     
-    def delete_many(self):
-        self.collection.update_many(self._spec, {_set: {_deleted : datetime.datetime.now()}})
-
-    drop = delete_many
-
     @property
     def _pk(self):
         if not self.pk:
             raise ValueError('a mongo_pk_cursor must have some primary keys')
         res = ulist(sorted(set(as_list(self.pk))))
         return res
-            
 
-    def insert_one(self, doc):
+    async def delete_one(self, doc = {}):
+        res = await self.find_one(doc)
+        await res.delete_many()
+        return self
+    
+    async def delete_many(self):
+        await self.collection.update_many(self._spec, {_set: {_deleted : datetime.datetime.now()}})
+        return self
+
+    drop = delete_many
+
+    async def insert_one(self, doc):
         """
         marks the old document as deleted and inserts the new one.
         In actual fact, we maintain the old id when we insert the new document, The deleted document receives a new id 
@@ -411,45 +411,46 @@ class mongo_pk_cursor(mongo_cursor):
 
         """
         c = self.find(self._id(doc))
-        n = c._assert_one_or_none()
+        n = await c._assert_one_or_none()
         new = self._write(doc)
         new.pop(_id, None)
         if n == 1:
-            old = c.read(0, reader = passthru)
+            old = await c.read(0, reader = passthru)
             i = old.pop(_id)
             unset = _dict1(list(old))
-            c.collection.update_one({_id : i}, {_unset: unset})
-            c.collection.update_one({_id : i}, {_set: new})
+            await c.collection.update_one({_id : i}, {_unset: unset})
+            await c.collection.update_one({_id : i}, {_set: new})
             new[_id] = i
             old[_deleted] = datetime.datetime.now()
-            self.collection.insert_one(old)
+            await self.collection.insert_one(old)
         else:
             missing_keys = [key for key in self._pk if key not in doc]
             if len(missing_keys)>0:
                 raise ValueError('cannot save a new doc with primary keys %s missing'%missing_keys)
-            new[_id] = self.collection.insert_one(new).inserted_id
+            insertion = await self.collection.insert_one(new)
+            new[_id] = insertion.inserted_id
         return new[_id]
     
-    
-    def _update_one(self, new):
+    async def _update_one(self, new):
         """
         receives a doc, returns updated doc
         """
         old = self.read(0, reader = passthru)
         if old is None:
-            new[_id] = self.collection.insert_one(new).inserted_id
+            inserted = await self.collection.insert_one(new)
+            new[_id] = inserted.inserted_id
         else:
             i = old.pop(_id)
             new = tree_update(old, new)
             unset = _dict1(list(old))
-            self.collection.update_one({_id : i}, {_unset: unset})
-            self.collection.update_one({_id : i}, {_set: new})            
+            await self.collection.update_one({_id : i}, {_unset: unset})
+            await self.collection.update_one({_id : i}, {_set: new})            
             new[_id] = i
             old[_deleted] = datetime.datetime.now()
-            self.collection.insert_one(old)
+            await self.collection.insert_one(old)
         return new
     
-    def update_one(self, doc, upsert = True):
+    async def update_one(self, doc, upsert = True):
         """
         updates an existing document
 
@@ -476,67 +477,48 @@ class mongo_pk_cursor(mongo_cursor):
         """
         new = self._write(doc)
         c = self.find(self._id(new))
-        n = c._assert_one_or_none()
+        n = await c._assert_one_or_none()
         if n == 1:
-            return c._update_one(new)
+            return await c._update_one(new)
         elif upsert:
             new = c._write(doc)
-            new[_id] = c.collection.insert_one(self._write(new)).inserted_id
+            inserted = await c.collection.insert_one(new)
+            new[_id] = inserted.inserted_id
             return new ## always returns the encoded cell rather than the original
             
-    def update_many(self, update, upsert = True):
-        return type(update)([self.update_one(doc, upsert = upsert) for doc in update])
+    async def update_many(self, update, upsert = True):
+        res = await waiter([self.update_one(doc, upsert = upsert) for doc in update])
+        return type(update)(res)
 
-    def __setitem__(self, key, value):
-        if isinstance(key, dict):
-            doc = key.copy()
-            doc.update(value if isinstance(value, dict) else {_data: value})
-            self.update_one(doc, upsert = True)
-        else:
-            super(mongo_pk_cursor, self).__setitem__(key, value)
     
-    def delete(self, item):            
+    async def delete(self, item):            
         if is_int(item):
-            self.delete_one(self[item])
+            doc = await self[item]
+            await self.delete_one(doc)
         elif is_strs(item):
             items = [i for i in as_list(item) if not i.startswith('_')]
             cannot_drop = self._pk & items
             if len(cannot_drop) > 0:
                 raise ValueError('cannot drop primary keys %s'%cannot_drop)
-            deleted = datetime.datetime.now()
-            for doc in self:
-                del doc[_id]
-                doc.update({_deleted: deleted})
-                self.collection.insert_one(self._write(doc))
-            self.collection.update_many(self._spec, {_unset: _dict1(item)})
+            now = datetime.datetime.now()
+            docs = await self.cursor.to_list(await self.count())
+            await waiter([self.collection.insert_one((doc - _id) + {_deleted: now}) for doc in docs]) # delete all docs at once
+            await self.collection.update_many(self._spec, {_unset: _dict1(item)})
         elif isinstance(item, dict):
-            self.delete_one(item)
+            await self.delete_one(item)
 
-    __delitem__ = delete
-
-    def insert_many(self, table):
-        for doc in table:
-            self.insert_one(doc)
+    async def insert_many(self, table):
+        await waiter([self.insert_one(doc) for doc in table])
         return self
     
-    def __add__(self, item):
-        if isinstance(item, (list, dictable)):
-            self.insert_many(item)
-        elif is_dict(item):
-            self.update_one(item, upsert = True)
-        else:
-            raise ValueError('can only add a dict, a dictable or a list of dicts')
+    async def set(self, **kwargs):
+        rows = await self.cursor.to_list(await self.count())
+        docs = [type(row)(Dict(row)(**kwargs)) for row in rows]
+        await waiter([self.update_one(doc) for doc in docs])
         return self
-
-    def set(self, **kwargs):
-        rows = [row for row in self]
-        for row in rows:
-            doc = type(row)(Dict(row)(**kwargs))
-            self.update_one(doc)
-        return self
-    
+                    
     @property
     def reset(self):
-        return mongo_cursor(self.collection, writer = self.writer, reader = self.reader)
+        return mongo_async_cursor(self.collection, writer = self.writer, reader = self.reader)
 
-                    
+        

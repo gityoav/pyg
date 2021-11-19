@@ -1,6 +1,6 @@
 import numpy as np
 from pyg.base._logger import logger
-from pyg.base._inspect import getargspec, getargs
+from pyg.base._inspect import getargspec, getargs, getcallargs
 from pyg.base._dictattr import dictattr
 from copy import copy
 import datetime
@@ -159,8 +159,7 @@ class wrapper(dictattr):
             return type(self)(function = args[0], **self._kwargs)
         else:
             return getattr(self, 'wrapped', self.function)(*args, **kwargs)
-
-
+    
 class try_back(wrapper):
     """
     wraps a function to try an evaluation. If an exception is thrown, returns first argument
@@ -313,9 +312,6 @@ class kwargs_support(wrapper):
         _args = self._args
         kwargs = {key : value for key, value in kwargs.items() if key in _args}
         return self.function(*args, **kwargs)
+ 
 
-        
-        
-        
-        
         

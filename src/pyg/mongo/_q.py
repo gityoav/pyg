@@ -28,6 +28,7 @@ _not = '$not'
 _mod = '$mod'
 _set = '$set'
 _unset = '$unset'
+_rename = '$rename'
 _exists = '$exists'
 _in = '$in'
 _not_in = '$nin'
@@ -35,8 +36,8 @@ _type = '$type'
 _prev = '_prev'
 _data = 'data'
 _doc = 'doc'
-_pk = '_pk'
 _deleted = 'deleted'
+
 
 
 _type2bson = {float : [1,19], 

@@ -1,13 +1,12 @@
 from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge, eq
 from pyg.base import cell_item, cell_inputs, Dict
-from pyg.base._cell import is_pairs, GRAPH, _GAD, UPDATED, _pk
+from pyg.base._cell import is_pairs, GRAPH, _GAD, UPDATED, _pk, _updated
 from pyg.mongo._q import _id, q, _deleted
 from pyg.mongo._table import mongo_table
 from functools import partial
 
 # import networkx as nx
 
-_updated = 'updated'
 _db = 'db'
 
 __all__ = ['db_load', 'db_save', 'db_cell']
@@ -66,7 +65,7 @@ def _load_asof(table, kwargs, deleted):
     t = table.inc(kwargs)
     if len(t) == 0:
         raise ValueError('no cells found matching %s'%kwargs)
-    live = t.inc(q.deleted.not_exists)
+    live = t(deleted = None)
     if deleted is None:
         if len(live) == 0:
             raise ValueError('no undeleted cells found matching %s'%kwargs)        
@@ -74,7 +73,7 @@ def _load_asof(table, kwargs, deleted):
             raise ValueError('multiple cells found matching %s'%kwargs)
         res = live[0]
     else:
-        history = t.inc(q.deleted > deleted) #cells alive at deleted
+        history = t(deleted = deleted) #cells alive at deleted
         if len(history) == 0:
             if len(live) == 0:
                 raise ValueError('no undeleted cells found matching %s'%kwargs)        
@@ -296,17 +295,7 @@ class db_cell(cell):
             if self.function is None:
                 res.function = saved.function
             return res
-        return self
-    
-    def go(self, go = 1, mode = 0, **kwargs):
-        res = (self + kwargs)._go(go = go, mode = mode)
-        address = res._address
-        if address in UPDATED:
-            res[_updated] = UPDATED[address] 
-        else: 
-            res[_updated] = dt()
-        return res.save()
-        
+        return self        
 
     def push(self):        
         me = self._address
