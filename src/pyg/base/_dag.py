@@ -9,21 +9,12 @@ Since we only use topological_sort, our implementation is more specialized and h
 DAGs = {}
 GADs = {}
 
-def _topological_sort(dag, node, gen):
-    if node not in gen:
-        gen[node] = 0
-    if node in dag:
-        g = gen[node]
-        children = dag[node]
-        for child in children:
-            if not (child in gen and gen[child] > g):
-                gen[child] = g + 1
-            gen = _topological_sort(dag, child, gen)
-    return gen
 
-
-def topological_sort(dag, node, gen = None):
+def topological_sort(dag, node):    
     """
+    This is a breadth-first topological sort, returning 
+    The breadth-first is faster for even medium-sized graphs and also needs no inversion.
+
     The directed acyclic graph is stored as a dict with edges that look like:
         dag[parent] = {child : None for child in (parent, child) set of edges}
 
@@ -33,30 +24,33 @@ def topological_sort(dag, node, gen = None):
         DESCRIPTION.
     node : a key
         a node in the graph acting as the top of the subgraph
-    gen : int, optional
-        output
 
     :Returns:
     -------
-    a dict from nodes to their generations
-    
+    a dict of dicts: 
+        node2gen: from nodes to their generations
+        gen2node: from a generation to a set of its node
 
     :Example: constructing a DAG:
     ---------
     >>> dag = dict(a = dict(b = 0, c = 0), b = dict(c = 0, d = 0, e = 0), c = dict(e = 0), d = dict(e = 0))
     >>> node = 'a'
-    >>> assert topological_sort(dag, node) == {'a': 0, 'b': 1, 'c': 2, 'e': 3, 'd': 2}
+    >>> assert topological_sort(dag, node)['node2gen'] == {'a': 0, 'b': 1, 'c': 2, 'e': 3, 'd': 2}
+
 
     :Example: multiple nodes descendants:
     --------------------------------------
-    >>> assert descendants(dag, ('c', 'd')) == ['c', 'd', 'e']
-
+    >>> assert descendants(dag, ['c', 'd']) == ['c', 'd', 'e'] 
+    
+    NOTE: we cannot provide the list as a tuple. A tuple is immutable in itself and will be considered to be a key in the dag.
+    
 
     :Example: we compare to networkx alternative:
     ---------
     >>> dag = dict(a = dict(b = 0, c = 0), b = dict(c = 0, d = 0, e = 0), c = dict(e = 0), d = dict(e = 0))
     >>> node = 'a'
-    >>> assert topological_sort(dag, node) == {'a': 0, 'b': 1, 'c': 2, 'e': 3, 'd': 2}
+    >>> ts = topological_sort(dag, node)
+    >>> assert ts['node2gen'] == {'a': 0, 'b': 1, 'c': 2, 'e': 3, 'd': 2}
 
     >>> import networkx as nx
     >>> G = nx.DiGraph()
@@ -69,9 +63,11 @@ def topological_sort(dag, node, gen = None):
     >>>    return list(nx.algorithms.dag.topological_sort(G.subgraph(nodes)))
 
 
-    >>> def compare_topological_sort_and_nx(x,y):
+    >>> def compare_topological_sort_and_nx(gen2node,y):
+    >>>     if 'gen2node' in gen2node:
+    >>>         gen2node = gen2node['gen2node']
     >>>     i = 1    
-    >>>     for g, nodes in sorted(dict_invert(x).items())[1:]:
+    >>>     for g, nodes in sorted(gen2node.items())[1:]:
     >>>         n = len(nodes)            
     >>>         if sorted(y[i:i+n]) != sorted(nodes):
     >>>             return False
@@ -122,23 +118,36 @@ def topological_sort(dag, node, gen = None):
 
     >>> x = timer(topological_sort, n = 1000, time = True)(dag, node)
     >>> y = timer(nx_topological_sort, n = 1000, time = True)(G, node)
-    >>> assert y/x > 5
+    >>> assert x * 10 < y   
     """
     dag = get_DAG(dag)
-    if gen is None:
-        gen = {}
-    nodes = set(node) if isinstance(node, (list, set, dict_keys, dict_values)) else [node]
-    for node in nodes:
-        if node not in gen:
-            gen[node] = 0
-        if node in dag:
-            g = gen[node]
-            children = dag[node]
-            for child in children:
-                if not (child in gen and gen[child] > g):
-                    gen[child] = g + 1
-                gen = _topological_sort(dag, child, gen)
-    return gen
+    nodes = set(node) if isinstance(node, (list, set, dict_keys, dict_values)) else set([node])
+    gen2node = {0 : nodes}
+    node2gen = {node : 0 for node in nodes}
+    gen = 0
+    while len(gen2node[gen]):
+        next_gen = gen + 1
+        gen2node[next_gen] = set()
+        for node in gen2node[gen].copy():
+            if node in dag:
+                children = dag[node]
+                for child in children:                
+                    if child in node2gen:
+                        cgen = node2gen[child]
+                        if cgen < next_gen:
+                            gen2node[cgen].remove(child)
+                            gen2node[next_gen].add(child)
+                            node2gen[child] = next_gen
+                    else:
+                        gen2node[next_gen].add(child)
+                        node2gen[child] = next_gen
+        gen = gen + 1
+    del gen2node[gen]
+    return dict(gen2node = gen2node, node2gen = node2gen)
+ 
+
+    
+
 
 def descendants(dag, node, exc = None):
     """
@@ -158,16 +167,16 @@ def descendants(dag, node, exc = None):
     list
         list of keys for children of node in the graph.
     """
-    gen = topological_sort(dag, node)
+    gen = topological_sort(dag, node)['gen2node']
     if len(gen) == 0:
         return []
     else:
         excs = as_list(exc)
         if len(excs):
-            nodes = [n for g, n in sorted(dict_invert(gen).items()) if g not in excs]
+            nodes = [n for g, n in sorted(gen.items()) if g not in excs]
         else:
-            nodes = [n for g, n in sorted(dict_invert(gen).items())]
-        return sum(nodes, [])
+            nodes = gen.values()
+        return sum(map(list,nodes), [])
 
 
 def get_DAG(dag = None):

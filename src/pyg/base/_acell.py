@@ -2,6 +2,8 @@ from pyg.base._cell import cell, UPDATED, GRAPH, _updated, _data, cell_func, cel
 from pyg.base._inspect import getargspec, getcallargs
 from pyg.base._waiter import waiter
 from pyg.base._logger import logger
+from pyg.base._dag import get_DAG, topological_sort
+from pyg.base._dict import dict_invert
 import datetime
 
 __all__ = ['cell_async_func', 'acell']
@@ -106,4 +108,23 @@ class acell(cell):
             if address:
                 GRAPH[address] = self
             return self
+    
+    async def push(self):
+        """
+        same as push for a normal cell but done slightly differently. We want to async as many cells as possible
+        but we do need to calculate parents before children
+        We therefore perform a topological sort and calculate async (in parallel) within each generation while we go up the generations in a serial fashion 
+        """
+        me = self._address
+        res = await self.go()
+        generations = topological_sort(get_DAG(), [me])['gen2node']
+        for i, children in sorted(generations.items())[1:]: # we skop the first generation... we just calculated it
+            GRAPH.update(await waiter({child : GRAPH[child].go() for child in children}))            
+            for child in children:
+                if child in UPDATED:
+                    del UPDATED[child]
+        if me:
+            del UPDATED[me]
+        return res
+
 

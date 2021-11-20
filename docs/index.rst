@@ -18,6 +18,7 @@ Welcome to pyg!
    lab/tutorial_dictable
    lab/tutorial_mongo
    lab/tutorial_cell
+   lab/tutorial_dag
    lab/tutorial_perdictable
    lab/tutorial_timeseries
    lab/tutorial_ts_decorators

@@ -8,7 +8,7 @@ from pyg.base._tree_repr import tree_repr
 from pyg.base._decorators import wrapper
 from pyg.base._logger import logger
 from pyg.base._types import is_strs
-from pyg.base._dag import get_DAG, add_edge, del_edge, descendants
+from pyg.base._dag import get_DAG, add_edge, del_edge, topological_sort
 from copy import copy
 import datetime
 
@@ -750,11 +750,11 @@ class cell(dictattr):
     def push(self):
         me = self._address
         res = self.go()
-        children = descendants(get_DAG(), me, exc = 0)
-        for child in children:
-            GRAPH[child] = GRAPH[child].go()
-        for child in children:
-            del UPDATED[child]
+        generations = topological_sort(get_DAG(), [me])['gen2node']
+        for i, children in sorted(generations.items())[1:]: # we skop the first generation... we just calculated it
+            GRAPH.update({child : GRAPH[child].go() for child in children})            
+            for child in children:
+                del UPDATED[child]
         if me:
             del UPDATED[me]
         return res

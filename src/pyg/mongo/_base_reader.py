@@ -113,6 +113,21 @@ _empty_crsr = Dict(collection = None, spec = None, projection = None, sorter = N
 _attrs = ['collection', 'projection', 'sorter', 'reader', 'writer', 'pk', 'deleted']
 
 class mongo_base_reader(object):
+    """
+    The base reader handles functionality shared between async and standard readers.
+    It handles the calculation of cursor spec, projection and sorting.
+    
+    
+    The object layout is as follows:
+            
+                                base_reader
+                        
+            mongo_reader                            mongo_async_reader           
+            
+    mongo_cursor     mongo_pk_cursor       mongo_async_cursor     mongo_async_pk_cursor
+                     
+                
+    """
     def __init__(self, collection, spec = None, projection = None, sorter = None, reader = None, writer = None, pk = None, deleted = None):
         if isinstance(collection, mongo_base_reader):
             crsr = collection
