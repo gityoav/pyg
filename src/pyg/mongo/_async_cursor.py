@@ -247,7 +247,8 @@ class mongo_async_cursor(mongo_async_reader):
         
         """
         if isinstance(item, int):
-            spec = {_id : self(projection = _id).read(item)[_id]}
+            existing_doc = await self(projection = _id).read(item)
+            spec = {_id : existing_doc[_id]}
             await self.collection.delete_one(spec)
         elif is_strs(item):
             await self.collection.update_many(self._spec, {_unset: _dict1(item)})

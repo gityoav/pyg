@@ -38,6 +38,11 @@ class mongo_reader(mongo_base_reader):
             res = res.find(self._id(doc))
         return res._assert_unique()
 
+    def read_one(self, doc = None, *args, **kwargs):
+        reader = kwargs.pop('reader', None)
+        return self.find_one(doc, *args, **kwargs).read(0, reader = reader)
+                    
+
     def read(self, item = 0, reader = None):
         """
         reads the next document from the collection.
@@ -94,7 +99,7 @@ class mongo_reader(mongo_base_reader):
         except TypeError:
             return res
 
-    def docs(self, doc = _doc, *keys):
+    def docs(self, *keys, doc = _doc):
         """
         self[::] flattens the entire document.
         At times, we want to see the full documents, indexed by keys and docs does that.        

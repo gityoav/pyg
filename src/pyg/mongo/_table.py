@@ -60,7 +60,6 @@ def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, 
         obj = mode
 
     if asynch or isinstance(obj, (mongo_async_reader, mongo_async_cursor)):
-        print('motor async client')
         client = MotorClient(url)
     else:
         client = MongoClient(url)

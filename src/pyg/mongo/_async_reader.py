@@ -5,10 +5,25 @@ import datetime
 
 
 class mongo_async_reader(mongo_base_reader):
+    """
+    An asynchronous class accessing the mongodb.
+    It is built using the Motor asynchronous interface (https://motor.readthedocs.io/en/stable/)
+    
+    We cannot override some operations so for example:
+        
+        sync world            async world                what it does
+        ----------            ------------               ------------
+        del cursor['key']     await c.delete('key')      deletes key from documents in cursor
+        cursor['key'] = val   await c.set(key = val)     set a key in documents in cursor
+        len(cursor)           await c.count()            cursor documents count 
+        cursor.key            await c.distinct('key')    distinct values (as a list) of a partical key
+        
+    
+    Apart from these interface differences, we really tried to keep the interfaces similar to the synced reader.
+    
+    """
     async def count(self):
         return await self.collection.count_documents(self._spec)
-
-    __len__ = count
 
     async def _assert_one_or_none(self):
         n = await self.count()
@@ -38,6 +53,11 @@ class mongo_async_reader(mongo_base_reader):
         if doc:
             res = res.find(self._id(doc))
         return await res._assert_unique()
+
+    async def read_one(self, doc = None, *args, **kwargs):
+        reader = kwargs.pop('reader', None)
+        record = await self.find_one(doc, *args, **kwargs)
+        return await record.read(0, reader = reader)
 
     async def read(self, item = 0, reader = None):
         """
@@ -78,7 +98,7 @@ class mongo_async_reader(mongo_base_reader):
             stop = item.stop or await self.count()            
             if start:
                 cursor = cursor.skip(item.start)
-                docs = await cursor.to_list(stop - start)
+            docs = await cursor.to_list(stop - start)
             return dictable([self._read(doc, reader = reader) for doc in docs])
         elif isinstance(item, (list, range, tuple)):
             docs = await waiter([self.read(i, reader) for i in item])
@@ -102,15 +122,19 @@ class mongo_async_reader(mongo_base_reader):
         except TypeError:
             return res
 
-    async def docs(self, doc = _doc, *keys):
+    async def list(self):
+        docs = await self.cursor.to_list(await self.count())
+        return [self._read(doc) for doc in docs]
+
+    async def docs(self, *keys, doc = _doc):
         """
-        self[::] flattens the entire document.
+        await reader[::] will flattens the entire documents returning a table of their values
         At times, we want to see the full documents, indexed by keys and docs does that.        
         returns a dictable with both keys and the document in the 'doc' column
+        
         """
         keys = self._pk + as_list(keys)
-        docs = await self.cursor.to_list(await self.count())
-        docs = [self._read(doc) for doc in docs]
+        docs = await self.list()
         res = dictable([{key: d.get(key) for key in keys} for d in docs])
         res[doc] = docs
         return res
@@ -141,4 +165,7 @@ class mongo_async_reader(mongo_base_reader):
                 await self.collection.update_many(q._id == sum(bad[lambda _id: _id[:-1]], []), {_set: {_deleted : datetime.datetime.now()}})
         return self
 
-    
+    async def keys(self, item = 0):
+        doc = await self.read(item)
+        return doc.keys()
+
