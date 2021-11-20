@@ -278,13 +278,14 @@ class mongo_base_reader(object):
         else:
             return doc
 
+
     def __repr__(self):
         return '%(t)s for %(c)s \nfilter: %(s)s projection: %(p)s sorted: %(r)s'%dict(t = type(self), 
-                                                                     c = self.collection, 
-                                                                     s = self._spec, 
-                                                                     p = self._projection,
-                                                                     r = self._sort)
-    
+                                                                                      c = self.collection, 
+                                                                                      s = self._spec, 
+                                                                                      p = self._projection,
+                                                                                      r = self._sort)    
+
     def copy(self):
         return type(self)(self)
 

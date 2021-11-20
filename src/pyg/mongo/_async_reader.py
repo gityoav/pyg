@@ -8,6 +8,8 @@ class mongo_async_reader(mongo_base_reader):
     async def count(self):
         return await self.collection.count_documents(self._spec)
 
+    __len__ = count
+
     async def _assert_one_or_none(self):
         n = await self.count()
         if n>1:

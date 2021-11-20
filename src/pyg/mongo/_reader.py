@@ -8,10 +8,6 @@ __all__ = ['mongo_reader']
 
 class mongo_reader(mongo_base_reader):
 
-    def count(self):
-        return self.collection.count_documents(self._spec)
-
-    __len__ = count    
 
     def _assert_one_or_none(self):
         n = self.count()
@@ -119,6 +115,11 @@ class mongo_reader(mongo_base_reader):
 
     def keys(self, item = 0):
         return self.read(item).keys()
+
+    def count(self):
+        return self.collection.count_documents(self._spec)
+
+    __len__ = count    
 
     def __repr__(self):
         n = len(self)

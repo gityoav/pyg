@@ -12,7 +12,7 @@ from motor import MotorClient
 __all__ = ['mongo_table']
 
 
-def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, mode = 'w', **kwargs):    
+def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, mode = 'w', asynch = False, **kwargs):    
     """
     :Example:
     ---------
@@ -39,24 +39,32 @@ def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, 
         mode = 'w'
     if is_str(mode):
         mode = mode.lower()
-        if False:
-            pass
-        elif mode == '' or mode.startswith('w'):
-            obj = mongo_cursor if pk is None else mongo_pk_cursor 
-        elif mode == 'a' or mode.startswith('aw'):
-            obj = mongo_async_cursor #if pk is None else mongo_async_pk_cursor 
-        elif mode.startswith('r'):
-            obj = mongo_reader 
-        elif mode.startswith('ar'):
-            obj = mongo_async_reader 
+        if mode.startswith('a'):
+            asynch = True
+            mode = mode[1:]
+        if not asynch:
+            if mode == '' or mode.startswith('w'):
+                obj = mongo_cursor if pk is None else mongo_pk_cursor 
+            elif mode.startswith('r'):
+                obj = mongo_reader
+            else:
+                raise ValueError('please specify read/write for mode')
         else:
-            raise ValueError('please specify read/write for mode')
+            if mode == '' or mode.startswith('w'):
+                obj = mongo_async_cursor if pk is None else mongo_async_pk_cursor 
+            elif mode.startswith('r'):
+                obj = mongo_async_reader 
+            else:
+                raise ValueError('please specify read/write for mode')
     else:
         obj = mode
-    if isinstance(obj, (mongo_async_reader, mongo_async_cursor)):
+
+    if asynch or isinstance(obj, (mongo_async_reader, mongo_async_cursor)):
+        print('motor async client')
         client = MotorClient(url)
     else:
         client = MongoClient(url)
+
     c = client[db][table]
     res = obj(c, pk = pk, writer = writer, reader = reader, **kwargs)
     if isinstance(res, (mongo_reader)) and len(res) == 0:
