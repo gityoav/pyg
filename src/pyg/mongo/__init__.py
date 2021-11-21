@@ -13,5 +13,6 @@ from pyg.mongo._table import mongo_table
 from pyg.mongo._encoders import root_path, pd_to_csv, pd_read_csv, parquet_encode, parquet_write, csv_encode, csv_write
 
 from pyg.mongo._db_cell import db_cell, db_load, db_save, get_cell, get_data, cell_push, cell_pull
-from pyg.mongo._periodic_cell import periodic_cell
+from pyg.mongo._db_acell import db_acell, db_asave, db_aload, acell_push
+from pyg.mongo._periodic_cell import periodic_cell, periodic_acell
 from pyg.mongo._cache import db_cache, cell_cache

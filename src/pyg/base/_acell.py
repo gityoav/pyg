@@ -3,13 +3,41 @@ from pyg.base._inspect import getargspec, getcallargs
 from pyg.base._waiter import waiter
 from pyg.base._logger import logger
 from pyg.base._dag import get_DAG, topological_sort
-from pyg.base._dict import dict_invert
 import datetime
+from typing import Awaitable
 
-__all__ = ['cell_async_func', 'acell']
+
+__all__ = ['acell_func', 'acell', 'acell_load']
+
+async def acell_load(value, mode = 0):
+    """
+    loads a cell from a database or memory and return its updated values
+
+    :Parameters:
+    ----------------
+    value : cell
+        The cell (or anything else).
+    mode: 1/0/-1
+        Used by cell.load(mode) -1 = no loading, 0 = load if available, 1 = throw an exception in unable to load
+
+    :Returns:
+    -------
+    A loaded cell
+    
+    """
+    if isinstance(value, cell):
+        return await value.load(mode)
+    elif isinstance(value, (list, tuple)):
+        return await waiter([acell_load(v, mode) for v in value])
+    elif isinstance(value, dict):
+        return await waiter({k : acell_load(v, mode) for k, v in value.items()})
+    elif isinstance(value, Awaitable):
+        return await value
+    else:
+        return value
 
 
-class cell_async_func(cell_func):
+class acell_func(cell_func):
     async def __call__(self, *args, **kwargs):
         if self.function is None and len(args) == 1 and len(kwargs) == 0:
             return await type(self)(function = args[0], **self._kwargs)
@@ -36,16 +64,15 @@ class cell_async_func(cell_func):
         params.update(c)
 
         
-        loaded_args = cell_load(varargs, mode)
-        loaded_varkw = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in varkw.items()}
-        loaded_params = {k : v if k in self.unloaded else cell_load(v, mode) for k, v in params.items()}
+        loaded_args = acell_load(varargs, mode)
+        loaded_varkw = {k : v if k in self.unloaded else acell_load(v, mode) for k, v in varkw.items()}
+        loaded_params = {k : v if k in self.unloaded else acell_load(v, mode) for k, v in params.items()}
 
         loaded_args, loaded_varkw , loaded_params = await waiter((loaded_args, loaded_varkw , loaded_params))
 
         called_varargs = cell_go(loaded_args , go)
         called_varkw = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_varkw.items()}
         called_params = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_params.items()}
-
 
         called_varargs, called_varkw, called_params = await waiter((called_varargs, called_varkw, called_params))
 
@@ -64,10 +91,11 @@ class acell(cell):
     asynchronous cell. 
     
     """
-    _func = cell_async_func
+    _func = acell_func
 
     async def __call__(self, go = 0, mode = 0, **kwargs):
-        return await (self + kwargs).load(mode = mode).go(go = go, mode = mode)
+        loaded = await (self + kwargs).load(mode = mode)
+        return await loaded.go(go = go, mode = mode)
 
     async def go(self, go = 1, mode = 0, **kwargs):
         res = await (self + kwargs)._go(go = go, mode = mode)
@@ -76,7 +104,7 @@ class acell(cell):
             res[_updated] = UPDATED[address] 
         else: 
             res[_updated] = datetime.datetime.now()
-        return res.save()
+        return await res.save()
 
     async def _go(self, go = 0, mode = 0):
         address = self._address
@@ -126,5 +154,11 @@ class acell(cell):
         if me:
             del UPDATED[me]
         return res
+    
+    async def load(self, mode = 0):
+        return super(acell, self).load(mode = mode)
+
+    async def save(self):
+        return super(acell, self).save()
 
 

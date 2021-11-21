@@ -1,17 +1,19 @@
-from pyg.base import cell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, descendants, add_edge, del_edge, eq
+from pyg.base import acell, is_strs, is_date, ulist, logger, tree_update, cell_clear, dt, as_list, get_DAG, topological_sort, add_edge, del_edge, eq, waiter
 from pyg.base import cell_item, cell_inputs, Dict
 from pyg.base._cell import is_pairs, GRAPH, _GAD, UPDATED, _pk, _updated
+
 from pyg.mongo._q import _id, q, _deleted
 from pyg.mongo._table import mongo_table
+from pyg.mongo._db_cell import db_cell, _load_asof, get_cell
 from functools import partial
 
 # import networkx as nx
 
 _db = 'db'
 
-__all__ = ['db_load', 'db_save', 'db_cell', 'cell_push', 'cell_pull', 'get_cell', 'get_data']
+__all__ = ['db_aload', 'db_asave', 'db_acell']
 
-def db_save(value):
+async def db_asave(value):
     """
     saves a db_cell from the database. Will iterates through lists and dicts
 
@@ -30,16 +32,17 @@ def db_save(value):
         
 
     """
-    if isinstance(value, db_cell):
-        return value.save()
+    if isinstance(value, db_acell):
+        return await value.save()
     elif isinstance(value, (tuple, list)):
-        return type(value)([db_save(v) for v in value])
+        return type(value)(await waiter([db_asave(v) for v in value]))
     elif isinstance(value, dict):
-        return type(value)(**{k : db_save(v) for k, v in value.items()})
+        saved = await waiter({k : db_asave(v) for k, v in value.items()})
+        return type(value)(**saved)
     else:
         return value
 
-def db_load(value, mode = 0):
+async def db_aload(value, mode = 0):
     """
     loads a db_cell from the database. Iterates through lists and dicts
     
@@ -52,46 +55,49 @@ def db_load(value, mode = 0):
         loading mode -1: dont load, +1: load and throw an exception if not found, 0: load if found
     
     """
-    if isinstance(value, db_cell):
-        return value.load(mode)
+    if isinstance(value, db_acell):
+        return await value.load(mode)
     elif isinstance(value, (tuple, list)):
-        return type(value)([db_load(v, mode = mode) for v in value])
+        return type(value)(await waiter([db_aload(v, mode = mode) for v in value]))
     elif isinstance(value, dict):
-        return type(value)(**{k : db_load(v, mode = mode) for k, v in value.items()})
+        loaded = await waiter({k : db_aload(v, mode = mode) for k, v in value.items()})
+        return type(value)(**loaded)
     else:
         return value
     
-def _load_asof(table, kwargs, deleted):
-    t = table.inc(kwargs)
-    if len(t) == 0:
+async def _async_load_asof(table, kwargs, deleted):
+    t = table.inc(kwargs)    
+    if await t.count() == 0:
         raise ValueError('no cells found matching %s'%kwargs)
     live = t(deleted = False)
     if deleted in (True, None): # we just want live values
-        if len(live) == 0:
+        live_count = await live.count()    
+        if live_count == 0:
             raise ValueError('no undeleted cells found matching %s'%kwargs)        
-        elif len(live)>1:
+        elif live_count>1:
             raise ValueError('multiple cells found matching %s'%kwargs)
-        res = live[0]
+        res = await live[0]
     else:
         history = t(deleted = deleted) #cells alive at deleted
-        if len(history) == 0:
-            if len(live) == 0:
+        history_count = await history.count()
+        if history_count == 0:
+            if live_count == 0:
                 raise ValueError('no undeleted cells found matching %s'%kwargs)        
-            elif len(live)>1:
+            elif live_count>1:
                 raise ValueError('multiple cells found matching %s'%kwargs)
             elif deleted is True:
                 raise ValueError('No deleted cells are avaialble but there is a live document matching %s. set delete = False to fetch it'%kwargs)
-            res = live[0]
+            res = await live[0]
         else:
-            if len(history) > 1 and deleted is True:
+            if history_count > 1 and deleted is True:
                 raise ValueError('multiple historic cells are avaialble %s. set delete = DATE to find the cell on that date'%kwargs)
-            res = history.sort('deleted')[0]
+            res = await history.sort('deleted')[0]
     return res
 
 
-class db_cell(cell):
+class db_acell(acell):
     """
-    a db_cell is a specialized cell with a 'db' member pointing to a database where cell is to be stored.    
+    a db_acell is a specialized cell with a 'db' member pointing to a database where cell is to be stored.    
     We use this to implement save/load for the cell.
     
     It is important to recognize the duality in the design:
@@ -147,11 +153,11 @@ class db_cell(cell):
         if db is not None:
             if not isinstance(db, partial):
                 raise ValueError('db must be a partial of a function like mongo_table initializing a mongo cursor')
-            super(db_cell, self).__init__(function = function, output = output, db = db, **kwargs)
+            super(db_acell, self).__init__(function = function, output = output, db = db, **kwargs)
         else:
             self[_db] = None
-            super(db_cell, self).__init__(function = function, output = output, **kwargs)
-
+            super(db_acell, self).__init__(function = function, output = output, **kwargs)
+        
     @property
     def _pk(self):
         if self.get(_db) is None:
@@ -165,7 +171,7 @@ class db_cell(cell):
         :Example:
         ----------
         >>> from pyg import *
-        >>> self = db_cell(db = partial(mongo_table, 'test', 'test', pk = 'key'), key = 1)
+        >>> self = db_acell(db = partial(mongo_table, 'test', 'test', pk = 'key'), key = 1)
         >>> db = self.db()
         >>> self._address
         >>> self._reference()
@@ -177,8 +183,8 @@ class db_cell(cell):
             returns a tuple representing the unique address of the cell.
         """
         if self.get(_db) is None:
-            return super(db_cell, self)._address
-        db = self.db()
+            return super(db_acell, self)._address
+        db = self.db(asynch = True)
         return db.address + tuple([(key, self.get(key)) for key in db._pk])
 
 
@@ -193,31 +199,32 @@ class db_cell(cell):
 
         """
         if self.get(_db) is None: 
-            return super(db_cell, self)._clear()
+            return super(db_acell, self)._clear()
         else:
-            return self[[_db] + self.db().pk]
+            return self[[_db] + self.db(asynch = True)._pk]
 
 
-    def save(self):
+    async def save(self):
         if self.get(_db) is None:
-            return super(db_cell, self).save()
+            return super(db_acell, self).save()
         address = self._address
         doc = (self - _deleted)
-        db = self.db()
+        db = self.db(asynch = True)
         missing = ulist(db._pk) - self.keys()
         if len(missing):
             logger.warning('WARN: document not saved as some keys are missing %s'%missing)
             return self            
         ref = type(doc)(**cell_clear(dict(doc)))
         try:
-            doc[_id] = db.update_one(ref)[_id]
+            updated = await db.update_one(ref)
         except Exception:
-            doc[_id] = db.update_one(ref-_id)[_id]
+            updated = await db.update_one(ref-_id)
+        doc[_id] = updated[_id]
         GRAPH[address] = doc
         return doc
                 
         
-    def load(self, mode = 0):
+    async def load(self, mode = 0):
         """
         loads a document from the database and updates various keys.
         
@@ -256,16 +263,16 @@ class db_cell(cell):
 
         """
         if self.get(_db) is None:
-            return super(db_cell, self).load(mode = mode)
+            return super(db_acell, self).load(mode = mode)
         if isinstance(mode, (list, tuple)):
             if len(mode) == 0:
                 mode = [0]
             if len(mode) == 1 or (len(mode)==2 and mode[0] == -1):
-                res = self.load(-1)
-                return res.load(mode[-1])
+                res = await self.load(-1)
+                return await res.load(mode[-1])
             else:
                 raise ValueError('mode can only be of the form [], [mode] or [-1, mode]')
-        db = self.db()
+        db = self.db(asynch = True)
         pk = ulist(db._pk)
         missing = pk - self.keys()
         if len(missing):
@@ -279,10 +286,10 @@ class db_cell(cell):
             return self
         if address not in GRAPH:
             if is_date(mode):
-                GRAPH[address] = _load_asof(db.reset, kwargs, deleted = mode)
+                GRAPH[address] = await _async_load_asof(db.reset, kwargs, deleted = mode)
             else:
                 try:
-                    GRAPH[address] = db[kwargs]
+                    GRAPH[address] = await db[kwargs]
                 except Exception:
                     if mode in (1, True):
                         raise ValueError('no cells found matching %s'%kwargs)
@@ -301,161 +308,20 @@ class db_cell(cell):
             return res
         return self        
 
-    def push(self):        
+    async def push(self):        
         me = self._address
-        res = self.go() # run me on my own as I am not part of the push
-        cell_push(me, exc = 0)
+        res = await self.go() # run me on my own as I am not part of the push
+        await acell_push(me, exc = 0)
         return res
 
-    def bind(self, **bind):
-        """
-        bind adds key-words to the primary keys of a cell
 
-        :Parameters:
-        ----------
-        bind : dict
-            primary keys and their values.
-            The value can be a callable function, transforming existing values
-
-        :Returns:
-        -------
-        res : cell
-            a cell with extra binding as primary keys.
-
-        :Example:
-        ---------
-        >>> from pyg import *
-        >>> db = partial(mongo_table, 'test', 'test', pk = 'key')
-        >>> c = db_cell(passthru, data = 1, db = db, key = 'old_key')()
-        >>> d = c.bind(key = 'key').go()
-        >>> assert d.pk == ['key']
-        >>> assert d._address in GRAPH
-        >>> e = d.bind(key2 = lambda key: key + '1')()
-        >>> assert e.pk == ['key', 'key2']
-        >>> assert e._address == (('key', 'key'), ('key2', 'key1'))
-        >>> assert e._address in GRAPH
-        """
-        db = self.get(_db)
-        if db is None:
-            return super(db_cell, self).bind(**bind)
-        else:
-            kw = self.db.keywords
-            for k in bind: # we want to be able to override tables/db/url
-                if k in ['db', 'table', 'url']:
-                    kw[k] = bind.pop(k)
-            pk = sorted(set(as_list(kw.get(_pk))) | set(bind.keys()))
-            kw[_pk] = pk
-            db = partial(db.func, *db.args, **kw)
-            res = Dict({key: self.get(key) for key in pk})
-            res = res(**bind)
-            res[_db] = db
-            return self + res
-
-
-def cell_push(nodes = None, exc = None):
+async def acell_push(nodes = None, exc = None):
     global UPDATED
     if nodes is None:
         nodes = UPDATED.keys()
-    children = [child for child in descendants(get_DAG(), nodes, exc = exc) if child is not None]
-    for child in children:
-        GRAPH[child] = (GRAPH[child] if child in GRAPH else get_cell(**dict(child))).go()
-    for child in children:
-        del UPDATED[child]
-
-
-
-
-def cell_pull(nodes, types = cell):
-    for node in as_list(nodes):
-        node = node.pull()
-        children = [get_cell(**dict(a)) for a in _GAD.get(node._address,[])]        
-        cell_pull(children, types)
-    return None        
-
-
-def get_cell(table = None, db = None, url = None, deleted = None, **kwargs):
-    """
-    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using deleted.
-    It is important to note that this DOES NOT go through the cache mechanism but goes to the database directly every time.
-
-    :Parameters:
-    ----------
-    table : str
-        name of table (Mongo collection). alternatively, you can just provide an address
-    db : str
-        name of database.
-    url : TYPE, optional
-        DESCRIPTION. The default is None.
-    deleted : datetime/None, optional
-        The date corresponding to the version of the cell we want
-        None = live cell
-        otherwise, the cell that was first deleted after this date.
-    **kwargs : keywords
-        key words for grabbing the cell.
-
-    :Returns:
-    -------
-    The document
-
-    :Example:
-    ---------
-    >>> from pyg import *
-    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
-    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
-    >>> assert get_cell('test','test', surname = 'brown').name == 'bob'
-        
-    """
-    global GRAPH
-    if is_pairs(table):
-        params = dict(table)
-        params.update({key: value for key, value in dict(db = db, url = url, deleted = deleted).items() if value is not None})
-        params.update(kwargs)
-        return get_cell(**params)
-    
-    if db is not None and table is not None:
-        t = mongo_table(db = db, table = table, url = url)
-        return _load_asof(t, kwargs, deleted)
-    else:
-        pk = kwargs.pop('pk', None)
-        if pk is None:
-            address = tuple(sorted(kwargs.items()))
-            res = GRAPH[address]
-        else:
-            address = tuple([(key, kwargs.get(key)) for key in sorted(as_list(pk))])
-            res = GRAPH[address]
-        return res
-
-
-def get_data(table = None, db = None, url = None, deleted = None, **kwargs):
-    """
-    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using deleted.
-
-    :Parameters:
-    ----------
-    table : str
-        name of table (Mongo collection).
-    db : str
-        name of database.
-    url : TYPE, optional
-        DESCRIPTION. The default is None.
-    deleted : datetime/None, optional
-        The date corresponding to the version of the cell we want
-        None = live cell
-        otherwise, the cell that was first deleted after this date.
-    **kwargs : keywords
-        key words for grabbing the cell.
-
-    :Returns:
-    -------
-    The document
-
-    :Example:
-    ---------
-    >>> from pyg import *
-    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
-    >>> people().reset.drop()
-    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
-    >>> assert get_data('test','test', surname = 'brown') is None
-        
-    """    
-    return cell_item(get_cell(table, db = db, url = url, deleted = deleted, **kwargs), key = 'data')
+    generations = topological_sort(get_DAG(), as_list(nodes))['gen2node']
+    for i, children in sorted(generations.items())[1:]: # we skop the first generation... we just calculated it
+        GRAPH.update(await waiter({child : GRAPH[child].go() for child in children}))            
+        for child in children:
+            if child in UPDATED:
+                del UPDATED[child]

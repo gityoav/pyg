@@ -507,6 +507,7 @@ class mongo_async_pk_cursor(mongo_async_cursor):
             await self.collection.update_many(self._spec, {_unset: _dict1(item)})
         elif isinstance(item, dict):
             await self.delete_one(item)
+        return self
 
     async def insert_many(self, table):
         await waiter([self.insert_one(doc) for doc in table])

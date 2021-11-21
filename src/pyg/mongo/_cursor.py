@@ -246,7 +246,7 @@ class mongo_cursor(mongo_reader):
         self.collection.update_many(self._spec, {_rename : kwargs})
         return self
     
-    def delete(self, item):
+    def __delitem__(self, item):
         if isinstance(item, int):
             self.collection.delete_one({_id : self[item][_id]})
         elif is_strs(item):
@@ -254,7 +254,9 @@ class mongo_cursor(mongo_reader):
         elif is_dict(item):
             self.find(item).delete_one()
     
-    __delitem__ = delete
+    def delete(self, item):
+        del self[item]
+        return self
     
     def insert_one(self, doc):
         """
@@ -383,6 +385,7 @@ class mongo_pk_cursor(mongo_cursor):
     
     def delete_many(self):
         self.collection.update_many(self._spec, {_set: {_deleted : datetime.datetime.now()}})
+        return self
 
     drop = delete_many
 
@@ -495,7 +498,9 @@ class mongo_pk_cursor(mongo_cursor):
         else:
             super(mongo_pk_cursor, self).__setitem__(key, value)
     
-    def delete(self, item):            
+
+
+    def __delitem__(self, item):            
         if is_int(item):
             self.delete_one(self[item])
         elif is_strs(item):
@@ -512,7 +517,9 @@ class mongo_pk_cursor(mongo_cursor):
         elif isinstance(item, dict):
             self.delete_one(item)
 
-    __delitem__ = delete
+    def delete(self, item):
+        del self[item]
+        return self
 
     def insert_many(self, table):
         for doc in table:
