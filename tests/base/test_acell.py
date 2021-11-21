@@ -41,10 +41,10 @@ async def test_acell_and_GRAPH():
 
     assert get_data(key = 'd') == 15
 
-    a = a.load(-1)
-    b = b.load(-1)
-    d = d.load(-1)
-    c = c.load(-1)
+    a = await a.load(-1)
+    b = await b.load(-1)
+    d = await d.load(-1)
+    c = await c.load(-1)
 
     assert a._address not in GRAPH
     assert b._address not in GRAPH
@@ -69,7 +69,7 @@ async def test_acell_and_push():
     a = await a.push()
     assert get_data(key = 'd') == 25    
     assert a.data == 5
-    assert d.load().data == 25    
+    assert (await d.load()).data == 25    
 
     a = cell(add_, a = 3, b = 2, pk = 'key', key = 'a').load(-1)
     b = cell(add_, a = a, b = a, pk = 'key', key = 'b').load(-1)
