@@ -297,31 +297,81 @@ class db_acell(acell):
                         return self         
         if address in GRAPH:
             saved = GRAPH[address]
-            if saved.get(_updated) is None and self.get(_updated) is None:
-                res = tree_update(self, dict(saved), ignore = [None])
-            elif saved.get(_updated) is not None and (self.get(_updated) is None or saved.get(_updated) > self.get(_updated)):
-                res = tree_update(self, dict(saved), ignore = [None])
-            else:
-                res = tree_update(saved, dict(self), ignore = [None])
-            if self.function is None:
-                res.function = saved.function
-            return res
+            saved_updated = saved.get(_updated)
+            self_updated = self.get(_updated)
+            if is_date(saved_updated) and (self_updated is None or self_updated < saved_updated):
+                output = {key: value for key, value in saved.items() if (key in [_updated] + self._output and value is not None) or key not in self}
+                self.update(output)
         return self        
+
+    def _load(self, mode = 0):
+        """
+        synchronously loads a document from the database and updates various keys. If a cell is asynchronous but is used 
+        
+        """
+        if self.get(_db) is None:
+            return super(db_acell, self)._load(mode = mode)
+        if isinstance(mode, (list, tuple)):
+            if len(mode) == 0:
+                mode = [0]
+            if len(mode) == 1 or (len(mode)==2 and mode[0] == -1):
+                res = self._load(-1)
+                return res._load(mode[-1])
+            else:
+                raise ValueError('mode can only be of the form [], [mode] or [-1, mode]')
+        db = self.db(asynch = False)
+        pk = ulist(db._pk)
+        missing = pk - self.keys()
+        if len(missing):
+            logger.warning('WARN: document not loaded as some keys are missing %s'%missing)
+            return self            
+        address = self._address
+        kwargs = {k : self[k] for k in pk}
+        if mode == -1:
+            if address in GRAPH:
+                del GRAPH[address]
+            return self
+        if address not in GRAPH:
+            if is_date(mode):
+                GRAPH[address] = _load_asof(db.reset, kwargs, deleted = mode)
+            else:
+                try:
+                    GRAPH[address] = db[kwargs]
+                except Exception:
+                    if mode in (1, True):
+                        raise ValueError('no cells found matching %s'%kwargs)
+                    else:
+                        return self         
+        if address in GRAPH:
+            saved = GRAPH[address]
+            saved_updated = saved.get(_updated)
+            self_updated = self.get(_updated)
+            if is_date(saved_updated) and (self_updated is None or self_updated < saved_updated):
+                output = {key: value for key, value in saved.items() if (key in [_updated] + self._output and value is not None) or key not in self}
+                self.update(output)
+        return self   
 
     async def push(self):        
         me = self._address
         res = await self.go() # run me on my own as I am not part of the push
-        await acell_push(me, exc = 0)
+        await acell_push([me], exc = 0)
+        if me in UPDATED:
+            del UPDATED[me]
         return res
+
 
 
 async def acell_push(nodes = None, exc = None):
     global UPDATED
     if nodes is None:
-        nodes = UPDATED.keys()
-    generations = topological_sort(get_DAG(), as_list(nodes))['gen2node']
-    for i, children in sorted(generations.items())[1:]: # we skop the first generation... we just calculated it
-        GRAPH.update(await waiter({child : GRAPH[child].go() for child in children}))            
+        nodes = list(UPDATED.keys())
+    generations = topological_sort(get_DAG(), nodes)['gen2node']
+    exc = as_list(exc)
+    if exc:
+        generations = {k:v for k,v in generations.items() if k not in exc}
+    for i, children in sorted(generations.items()):
+        updated = await waiter({child : GRAPH[child].go() for child in children if child is not None})
+        GRAPH.update(updated)            
         for child in children:
             if child in UPDATED:
                 del UPDATED[child]

@@ -7,7 +7,7 @@ from pyg.base._ulist import ulist
 from pyg.base._tree_repr import tree_repr
 from pyg.base._decorators import wrapper
 from pyg.base._logger import logger
-from pyg.base._types import is_strs
+from pyg.base._types import is_strs, is_date
 from pyg.base._dag import get_DAG, add_edge, del_edge, topological_sort
 from copy import copy
 import datetime
@@ -70,6 +70,8 @@ def _cell_item(value, key = None, key_before_data = False):
                 return value[_data]
             else:            
                 return Dict(value)[output]
+            
+        
 
 def cell_clear(value):
     """
@@ -136,7 +138,10 @@ def cell_item(value, key = None):
 @loop(list, tuple)
 def _cell_go(value, go, mode = 0):
     if isinstance(value, cell):
-        return value.go(go = go, mode = mode)
+        if value._awaitable:
+            return value
+        else:
+            return value.go(go = go, mode = mode)
     else:
         if isinstance(value, dict):
             return type(value)(**{k: _cell_go(v, go = go, mode = mode) for k, v in value.items()})
@@ -179,7 +184,10 @@ def cell_go(value, go = 0, mode = 0):
 @loop(list, tuple)
 def _cell_load(value, mode):
     if isinstance(value, cell):
-        return value.load(mode)
+        if value._awaitable:
+            return value._load(mode) # this is a cheat, we are loading the data synchronously
+        else:
+            return value.load(mode)
     else:
         if isinstance(value, dict):
             return type(value)(**{k: _cell_load(v, mode) for k, v in value.items()})
@@ -378,6 +386,7 @@ class cell(dictattr):
     
     """
     _func = cell_func 
+    _awaitable = False
     
     def __init__(self, function = None, output = None, **kwargs):
         if (len(kwargs) == 0 and isinstance(function, (Dict, cell))) or (isinstance(function,dict) and not callable(function)): 
@@ -455,17 +464,13 @@ class cell(dictattr):
             if address in GRAPH:
                 del GRAPH[address]
             return self
-        if address in GRAPH:
+        if address is not None and address in GRAPH:
             saved = GRAPH[address]
-            if saved.get(_updated) is None and self.get(_updated) is None:
-                res = tree_update(self, dict(saved), ignore = [None])
-            elif saved.get(_updated) is not None and (self.get(_updated) is None or saved.get(_updated) > self.get(_updated)):
-                res = tree_update(self, dict(saved), ignore = [None])
-            else:
-                res = tree_update(saved, dict(self), ignore = [None])
-            if self.function is None:
-                res.function = saved.function
-            return res
+            saved_updated = saved.get(_updated)
+            self_updated = self.get(_updated)
+            if is_date(saved_updated) and (self_updated is None or self_updated < saved_updated):
+                output = {key: value for key, value in saved.items() if (key in [_updated] + self._output and value is not None) or key not in self}
+                self.update(output)
         elif mode == 1:
             raise ValueError('mode = 1 and yet %s not found in the GRAPH'%address)
         return self

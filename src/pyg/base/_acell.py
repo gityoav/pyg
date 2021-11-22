@@ -7,7 +7,55 @@ import datetime
 from typing import Awaitable
 
 
-__all__ = ['acell_func', 'acell', 'acell_load']
+__all__ = ['acell_func', 'acell', 'acell_load', 'acell_go']
+
+
+
+async def acell_go(value, go = 0, mode = 0):
+    """
+    cell_go makes a cell run (using cell.go(go)) and returns the calculated cell.
+    If value is not a cell, value is returned.    
+
+    :Parameters:
+    ----------------
+    value : cell
+        The cell (or anything else).
+    go : int
+        same inputs as per cell.go(go).
+        0: run if cell.run() is True
+        1: run this cell regardless, run parent cells only if they need to calculate too
+        n: run this cell & its nth parents regardless. 
+        
+    :Returns:
+    -------
+    The calculated cell
+    
+    :Example: calling non-cells
+    ----------------------------------------------
+    >>> assert cell_go(1) == 1
+    >>> assert cell_go(dict(a=1,b=2)) == dict(a=1,b=2)
+
+    :Example: calling cells
+    ------------------------------------------
+    >>> c = cell(lambda a, b: a+b, a = 1, b = 2)
+    >>> assert cell_go(c) == c(data = 3)
+
+    """
+    if isinstance(value, cell):
+        res = value.go(go = go, mode = mode)
+        if isinstance(res, Awaitable):
+            return await res
+        else:        
+            return res
+    else:
+        if isinstance(value, dict):
+            res = await waiter({k: acell_go(v, go = go, mode = mode) for k, v in value.items()})
+            return type(value)(res) 
+        elif isinstance(value, (list, tuple)):
+            res = await waiter([acell_go(v, go = go, mode = mode) for v in value])
+            return type(value)(res)
+        else:
+            return await waiter(value)
 
 async def acell_load(value, mode = 0):
     """
@@ -26,7 +74,11 @@ async def acell_load(value, mode = 0):
     
     """
     if isinstance(value, cell):
-        return await value.load(mode)
+        result = value.load(mode)
+        if isinstance(result, Awaitable):
+            return await result
+        else:
+            return result
     elif isinstance(value, (list, tuple)):
         return await waiter([acell_load(v, mode) for v in value])
     elif isinstance(value, dict):
@@ -38,6 +90,18 @@ async def acell_load(value, mode = 0):
 
 
 class acell_func(cell_func):
+    """
+    acell_func performs the same (async) function as cell_func, loading and ensuring data is there and then presenting parameters to self.function.
+    
+    :Example:
+    --------
+    >>> from pyg import * 
+    >>> a = acell(add_, a = 1, b = 2)
+    >>> self = acell_func(add_)
+    >>> args = ();  kwargs = dict(a = a, b = a)    
+    >>> res = await self(*args, **kwargs)
+    >>> assert res[0] == 6    
+    """
     async def __call__(self, *args, **kwargs):
         if self.function is None and len(args) == 1 and len(kwargs) == 0:
             return await type(self)(function = args[0], **self._kwargs)
@@ -70,9 +134,9 @@ class acell_func(cell_func):
 
         loaded_args, loaded_varkw , loaded_params = await waiter((loaded_args, loaded_varkw , loaded_params))
 
-        called_varargs = cell_go(loaded_args , go)
-        called_varkw = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_varkw.items()}
-        called_params = {k : v if k in self.uncalled else cell_go(v, go) for k, v in loaded_params.items()}
+        called_varargs = acell_go(loaded_args , go)
+        called_varkw = {k : v if k in self.uncalled else acell_go(v, go) for k, v in loaded_varkw.items()}
+        called_params = {k : v if k in self.uncalled else acell_go(v, go) for k, v in loaded_params.items()}
 
         called_varargs, called_varkw, called_params = await waiter((called_varargs, called_varkw, called_params))
 
@@ -92,6 +156,7 @@ class acell(cell):
     
     """
     _func = acell_func
+    _awaitable = True
 
     async def __call__(self, go = 0, mode = 0, **kwargs):
         loaded = await (self + kwargs).load(mode = mode)
@@ -156,6 +221,9 @@ class acell(cell):
         return res
     
     async def load(self, mode = 0):
+        return super(acell, self).load(mode = mode)
+    
+    def _load(self, mode = 0):
         return super(acell, self).load(mode = mode)
 
     async def save(self):

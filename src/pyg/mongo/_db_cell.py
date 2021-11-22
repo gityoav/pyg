@@ -11,6 +11,14 @@ _db = 'db'
 
 __all__ = ['db_load', 'db_save', 'db_cell', 'cell_push', 'cell_pull', 'get_cell', 'get_data']
 
+
+
+ 
+
+
+
+
+
 def db_save(value):
     """
     saves a db_cell from the database. Will iterates through lists and dicts
@@ -265,7 +273,7 @@ class db_cell(cell):
                 return res.load(mode[-1])
             else:
                 raise ValueError('mode can only be of the form [], [mode] or [-1, mode]')
-        db = self.db()
+        db = self.db(asynch = False)
         pk = ulist(db._pk)
         missing = pk - self.keys()
         if len(missing):
@@ -277,7 +285,7 @@ class db_cell(cell):
             if address in GRAPH:
                 del GRAPH[address]
             return self
-        if address not in GRAPH:
+        if address not in GRAPH: # we load from the database
             if is_date(mode):
                 GRAPH[address] = _load_asof(db.reset, kwargs, deleted = mode)
             else:
@@ -290,21 +298,19 @@ class db_cell(cell):
                         return self         
         if address in GRAPH:
             saved = GRAPH[address]
-            if saved.get(_updated) is None and self.get(_updated) is None:
-                res = tree_update(self, dict(saved), ignore = [None])
-            elif saved.get(_updated) is not None and (self.get(_updated) is None or saved.get(_updated) > self.get(_updated)):
-                res = tree_update(self, dict(saved), ignore = [None])
-            else:
-                res = tree_update(saved, dict(self), ignore = [None])
-            if self.function is None:
-                res.function = saved.function
-            return res
+            saved_updated = saved.get(_updated)
+            self_updated = self.get(_updated)
+            if is_date(saved_updated) and (self_updated is None or self_updated < saved_updated):
+                output = {key: value for key, value in saved.items() if (key in [_updated] + self._output and value is not None) or key not in self}
+                self.update(output)
         return self        
 
     def push(self):        
         me = self._address
         res = self.go() # run me on my own as I am not part of the push
         cell_push(me, exc = 0)
+        if me in UPDATED:
+            del UPDATED[me]
         return res
 
     def bind(self, **bind):

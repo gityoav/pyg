@@ -43,13 +43,12 @@ def as_writer(writer):
     else:
         return as_list(writer)
 
-
-
 def _dict1(keys):
     if keys is None or is_dict(keys):
         return keys
     else:
         return dict([(key[1:], -1) if key.startswith('-') else (key,1) for key in as_list(keys)])
+
 
 def _items1(keys):
     return list(_dict1(keys).items()) if keys else []

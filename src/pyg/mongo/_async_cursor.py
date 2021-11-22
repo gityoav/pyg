@@ -34,6 +34,7 @@ class mongo_async_cursor(mongo_async_reader):
 
     reader : callable or None, optional
         The default is None, using decode. Use reader = False to passthru
+
     query : dict, optional
         This is used to specify the Mongo query, e.g. q.a==1.
     **_ : 
@@ -42,50 +43,54 @@ class mongo_async_cursor(mongo_async_reader):
     :Example:
     ---------
     >>> from pyg import *
-    >>> cursor = mongo_table('test', 'test')
-    >>> cursor.drop()
+    >>> cursor = mongo_table('test', 'test', asynch = True)
+    >>> await cursor.drop()
 
     ## insert some data
     
     >>> table = dictable(a = range(5)) * dictable(b = range(5))
-    >>> cursor.insert_many(table)
-    >>> cursor.set(c = lambda a, b: a * b)
-    
+    >>> await cursor.insert_many(table)
+    >>> await cursor.set(c = lambda a, b: a * b)
+    >>> await cursor[::]   
+
+    >>> dictable[25 x 4]
+    >>> _id                     |a|b|c 
+    >>> 619a281b544e7b3528058457|0|0|0 
+    >>> 619a281b544e7b3528058458|0|1|0 
+    >>> 619a281b544e7b3528058459|0|2|0 
+    >>> ... 25 rows...
+    >>> 619a281b544e7b352805846d|4|2|8 
+    >>> 619a281b544e7b352805846e|4|3|12
+    >>> 619a281b544e7b352805846f|4|4|16
 
     :filtering:
     -----------
 
-    >>> assert len(cursor) == 25
-    >>> assert len(cursor.find(a = 3)) == 5
-    >>> assert len(cursor.exc(a = 3)) == 20
-    >>> assert len(cursor.find(a = [3,2]).find(q.b<3)) == 6 ## can chain queries as well as use q to create complicated expressions
+    >>> assert await cursor.count() == 25
+    >>> assert await cursor.find(a = 3).count() == 5
+    >>> assert await cursor.exc(a = 3).count() == 20
+    >>> assert await cursor.find(a = [3,2]).find(q.b<3).count() == 6 ## can chain queries as well as use q to create complicated expressions
     
     :row access:
     -------------
     
-    >>> cursor[0]
+    >>> await cursor[0]
     
-    {'_id': ObjectId('603aec85cd15e2c090c07b87'), 'a': 0, 'b': 0}
-    
-    >>> cursor[::] - '_id' == dictable(cursor) - '_id'
-    
-    >>> dictable[25 x 3]
-    >>> a|b|c 
-    >>> 0|0|0 
-    >>> 0|1|0 
-    >>> 0|2|0 
-    >>> ...25 rows...
-    >>> 4|2|8 
-    >>> 4|3|12
-    >>> 4|4|16
-    
+    >>> {'_id': ObjectId('603aec85cd15e2c090c07b87'), 'a': 0, 'b': 0, 'c': 0}
+        
     :column access:
     ---------------
-    >>> cursor[['a', 'b']]  ## just columns 'a' and 'b'
-    >>> del cursor['c'] ## delete all c
-    >>> cursor.set(c = lambda a, b: a * b)
-    >>> assert cursor.find_one(a = 3, b = 2)[0].c == 6
+    >>> just_a_and_b  = await cursor[['a', 'b']]  ## just columns 'a' and 'b'
+    >>> await just_a_and_b[0]
+    >>> {'_id': ObjectId('619a281b544e7b3528058457'), 'a': 0, 'b': 0}  # no 'c' column
     
+    >>> await cursor.delete('c') ## delete all c
+        
+    >>> await cursor.set(c = 5, d = lambda a,b,c: (a+c) * (b + c)) # can set constants or formulae
+    >>> await cursor.read_one(a = 3, b = 2)
+    >>>    {'_id': ObjectId('619a281b544e7b3528058468'), 'a': 3, 'b': 2, 'c': 5, 'd': 56}
+
+
     :Example: root specification
     ----------------------------
     >>> from pyg import *
@@ -436,7 +441,7 @@ class mongo_async_pk_cursor(mongo_async_cursor):
         """
         receives a doc, returns updated doc
         """
-        old = self.read(0, reader = passthru)
+        old = await self.read(0, reader = passthru)
         if old is None:
             inserted = await self.collection.insert_one(new)
             new[_id] = inserted.inserted_id

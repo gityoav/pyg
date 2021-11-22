@@ -1,6 +1,6 @@
 from pyg.base._as_float import as_float
 from pyg.base._as_list import as_list, as_tuple, first, last, passthru, unique, is_rng
-from pyg.base._acell import acell, acell_load, acell_func
+from pyg.base._acell import acell, acell_load, acell_func, acell_go
 from pyg.base._cache import cache
 from pyg.base._cell import cell, cell_go, cell_item, cell_func, cell_load, cell_output, cell_clear, cell_inputs, GRAPH, UPDATED
 from pyg.base._dates import dt,dt_bump, today, ymd, TMIN, TMAX, DAY, futcodes, dt2str, is_bump

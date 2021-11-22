@@ -39,9 +39,6 @@ def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, 
         mode = 'w'
     if is_str(mode):
         mode = mode.lower()
-        if mode.startswith('a'):
-            asynch = True
-            mode = mode[1:]
         if not asynch:
             if mode == '' or mode.startswith('w'):
                 obj = mongo_cursor if pk is None else mongo_pk_cursor 
