@@ -414,9 +414,9 @@ class dictable(Dict):
         >>> assert d.inc(lambda x,y: x>y) == dictable(x = 1, y = 0)
 
         """
-        if len(functions) + len(filters) == 0:
-            return self
         res = self.copy()
+        if len(functions) + len(filters) == 0:
+            return res
         functions = as_list(functions)
         for function in functions:
             if type(function) == dict:
@@ -470,9 +470,9 @@ class dictable(Dict):
         >>> assert d.exc(lambda x,y: x>y) == dictable(x = 1, y = 0)
 
         """
-        if len(functions) + len(filters) == 0:
-            return self
         res = self.copy()
+        if len(functions) + len(filters) == 0:
+            return res
         functions = as_list(functions)
         for function in functions:
             if type(function) == dict:
@@ -652,7 +652,7 @@ class dictable(Dict):
         """
         by = as_list(by)
         if len(self) == 0 or len(by) == 0:
-            return self
+            return self.copy()
         keys = self[as_tuple(by)]
         keys2id = list(zip(keys, range(len(self))))
         _, rows = zip(*sort(keys2id))
@@ -679,7 +679,7 @@ class dictable(Dict):
 
     def listby(self,*by):
         if len(self) == 0:
-            return self
+            return self.copy()
         if len(by) == 0:
             by = self.keys()
         by = as_tuple(by)
@@ -741,7 +741,7 @@ class dictable(Dict):
 
         """
         if len(self) == 0:
-            return self
+            return self.copy()
         if len(by) == 0:
             by = self.keys()
         by = as_tuple(by)
@@ -915,7 +915,7 @@ class dictable(Dict):
         if len(lcols)!=len(rcols):
             raise ValueError('cannot xor-join when cols on either side mismatch in length %s vs %s'%(lcols, rcols))
         if len(lcols) == 0:
-            return self
+            return self.copy()
         lxs, lids = self._listby(lcols)
         rxs, rids = other._listby(rcols)
         mode = 1 if (is_str(mode) and mode[0].lower() == 'r') or mode == 1 else 0
