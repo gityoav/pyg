@@ -659,8 +659,12 @@ class dictable(Dict):
         return type(self)({key: [value[i] for i in rows] for key, value in self.items()})
 
     def __add__(self, other):
+        if other in (None, 0):
+            return self
         return self.concat(self, other)                
-        
+    
+    __radd__ = __add__
+    
     def _listby(self, by):
         keys = self[by]
         keys2id = sort(list(zip(keys, range(len(self)))))

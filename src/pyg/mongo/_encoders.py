@@ -39,9 +39,13 @@ def root_path(doc, root, fmt = None):
     >>> root = 'c:/archive/%report.date/%pupil.name.%pupil.surname/'
     >>> assert root_path(doc, root, '%Y') == 'c:/archive/2000/yoav.git/'  # can choose to format dates by providing a fmt.
     """
-    items = tree_items(dict(doc))
+    items = sorted(tree_items(dict(doc)))[::-1]
     res = root
     for row in items:
+        text = '%(' + '.'.join(row[:-1]) + ')'
+        if text in root:
+            value = dt2str(row[-1], fmt).replace(':','') if is_date(row[-1]) else str(row[-1])
+            res = res.replace(text, '%s'% value)
         text = '%' + '.'.join(row[:-1])
         if text in root:
             value = dt2str(row[-1], fmt).replace(':','') if is_date(row[-1]) else str(row[-1])

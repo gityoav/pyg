@@ -14,6 +14,12 @@ def test_dictable_init_Excel():
     assert dictable(df) == rs
 
 
+def test_dictable_add_0():
+    rs = dictable(a = [1,2])
+    assert sum([rs,rs]) == dictable(a = [1,2,1,2])
+    assert rs + None == rs
+    assert None + rs == rs
+    assert rs + 0 == rs
 
 def test_dictable_init():
     assert dict(dictable(data = [1,2,3], b = 1)) == dict(data = [1,2,3], b = [1,1,1])
