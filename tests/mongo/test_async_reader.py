@@ -6,13 +6,13 @@ import pandas as pd
 
 
 def test_async_cursor_reader_writer():
-    cursor = mongo_table('test', 'test', mode = 'ar', writer = False, reader = False)
+    cursor = mongo_table('test', 'test', mode = 'r', writer = False, reader = False, asynch = True)
     assert cursor._writer() == [passthru]
     assert cursor._reader() == [passthru]
 
 
 def test_async_mongo_reader_spec_projection():
-    reader = mongo_table('test', 'test', mode = 'ar')
+    reader = mongo_table('test', 'test', mode = 'r', asynch = True)
     assert reader.projection is None    
     assert reader(projection = ['a','b']).projection == ['a', 'b']   
     assert not reader.spec 
@@ -24,7 +24,7 @@ def test_async_mongo_reader_spec_projection():
     
 
 def test_async_reader_is_no_writer():
-    reader = mongo_table('test', 'test', mode = 'ar')
+    reader = mongo_table('test', 'test', mode = 'r', asynch = True)
     with pytest.raises(AttributeError):
         reader.insert_one(dict(a =1))    
     with pytest.raises(AttributeError):
@@ -40,7 +40,7 @@ def test_async_reader_is_no_writer():
 
 @pytest.mark.asyncio
 async def test_async_mongo_reader__read():
-    t = mongo_table('test', 'test', pk = 'key', mode = 'aw')
+    t = mongo_table('test', 'test', pk = 'key', mode = 'w', asynch = True)
     await t.reset.drop()
     df = pd.Series([1,2])
     await t.insert_one(dict(key = 1, df = df))
@@ -62,7 +62,7 @@ async def test_async_mongo_reader_distinct():
     await t.insert_one(dict(key = 1))
     await t.insert_one(dict(key = None))
     await t.insert_one(dict(key = dt(0)))
-    reader = mongo_table('test', 'test', mode = 'ar')
+    reader = mongo_table('test', 'test', mode = 'r', asynch = True)
 
     keys = await reader.distinct('key')
     for key in [None, dt(0), 1, 'a']:

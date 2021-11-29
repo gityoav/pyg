@@ -10,8 +10,7 @@ from pyg import *
 import pytest
 
 updated = 'updated'
-def f(a,b):
-    return a+b
+f = add_
 
 millisec = dt.timedelta(microseconds = 1000)
 
@@ -47,10 +46,10 @@ def test_db_cell_save_root():
     path = 'c:/temp/b/data.parquet'
     assert eq(pd_read_parquet(path), res.data)    
     res = db_cell(db = db, key = 'b').load()
-    assert eq(res, self)    
+    assert eq(res.data, self.data)    
     GRAPH = {} # not from cache please
     res = db_cell(db = db, key = 'b').load() - _pk
-    assert eq(res, self)    
+    assert eq(res.data, self.data)    
 
 def test_db_save():
     db = partial(mongo_table, db = 'temp', table = 'temp', pk = 'key')    

@@ -3,7 +3,7 @@ import pytest
 import pandas as pd
 
 def test_clone_cursor():
-    reader = mongo_table('test', 'test', mode = 'ar')
+    reader = mongo_table('test', 'test', mode = 'r', asynch = True)
     assert isinstance(reader, mongo_async_reader)
     reader = mongo_table('test', 'test', mode = 'r')
     assert isinstance(reader, mongo_reader)

@@ -9,7 +9,7 @@ def test_async_mongo_reader_allows_passthru():
 
 @pytest.mark.asyncio
 async def test_async_mongo_cursor():
-    c = mongo_table('test', 'test', mode = 'a')
+    c = mongo_table('test', 'test', asynch = True)
     await c.drop()    
     docs = dictable(a = range(10)) * dict(b = range(10))
     c = await c.insert_many(docs)

@@ -1,5 +1,5 @@
 from pyg import get_cell, get_data, mongo_table, mul_, cell, dictable, db_cell, dt, get_DAG, add_, cell_push
-from pyg.mongo._db_cell import GRAPH
+from pyg.mongo._db_cell import GRAPH, UPDATED
 import pytest
 from functools import partial
 from pyg import * 
@@ -116,11 +116,14 @@ def test_db_cell_queued_push_pull():
     e = db_cell(add_, a = d, b = b, key = 'e', db = db)(mode = -1)
     a.a = 6
     a = a.go()
-    assert get_data('test', 'test', key = 'e') == 18
+    cell_push()
+    assert get_data('test', 'test', key = 'e') == 38
     b.b = 4
     b = b.go()
-    assert get_data('test', 'test', key = 'e') == 18
+    assert len(UPDATED) == 1 and b._address in UPDATED
     cell_push()
     assert get_data('test', 'test', key = 'e') == 44
     assert e.load().data == 44    
     db().reset.drop()
+
+    

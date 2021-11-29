@@ -292,8 +292,8 @@ def test_dictable_inc2():
     assert self.inc(a = 3, b = 6) == dictable(a = 3, b = 6)    
     assert self.inc(lambda a: a>2, lambda b: b<7) == dictable(a = 3, b = 6)    
     assert self.inc(lambda a: a>2, b = 7) == dictable(a = 3, b = 7)    
-    assert self.inc() is self
-    assert self.exc() is self
+    assert self.inc() == self
+    assert self.exc() == self
 
 def test_dictable_getitem():
     self = dictable(a = [1,2,3,3], b = [4,5,6,7])
