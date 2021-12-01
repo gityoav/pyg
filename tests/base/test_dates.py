@@ -1,4 +1,4 @@
-from pyg import dt, dt_bump, drange, dt,dt_bump, today, ymd, TMIN, TMAX, DAY, futcodes, dt2str, eq
+from pyg import dt, dt_bump, drange, dt,dt_bump, today, ymd, TMIN, TMAX, DAY, futcodes, dt2str, eq, nth_weekday_of_month
 from pyg.base._dates import none2dt, is_period, ym, month, uk2dt, us2dt
 import datetime
 import pytest
@@ -46,6 +46,30 @@ def test_dt_utc():
     assert dt(timestamp) == datetime.datetime.utcfromtimestamp(timestamp)
     if datetime.datetime.utcfromtimestamp(timestamp) == t:
         assert dt(timestamp) == t
+
+
+def test_nth_weekday_of_month():
+    y = 2020; m = 2
+    assert nth_weekday_of_month(y, m, 1, 'sat') == dt(2020, 2, 1)
+    assert nth_weekday_of_month(y, m, 1, 'sun') == dt(2020, 2, 2)
+    assert nth_weekday_of_month(y, m, 1, 'monday') == dt(2020, 2, 3)
+    assert nth_weekday_of_month(y, 'G', 3, 'sat') == dt(2020, 2, 15)
+    assert nth_weekday_of_month(y, 'G', 3, 'sun') == dt(2020, 2, 16)
+    assert nth_weekday_of_month(y, 'G', 3, 'monday') == dt(2020, 2, 17)
+
+
+    assert dt(y, m, 1, 'sat') == dt(2020, 2, 1)
+    assert dt(y, m, 1, 'sun') == dt(2020, 2, 2)
+    assert dt(y, m, 1, 'monday') == dt(2020, 2, 3)
+    assert dt(y, 'G', 3, 'sat') == dt(2020, 2, 15)
+    assert dt(y, 'G', 3, 'sun') == dt(2020, 2, 16)
+    assert dt(y, 'G', 3, 'monday') == dt(2020, 2, 17)
+    
+
+def test_nth_weekday_of_month_backwards():
+    assert nth_weekday_of_month(2020, 2, -1, 'sat') == dt(2020, 2, 29)
+    assert nth_weekday_of_month(2020, 2, -2, 'sat') == dt(2020, 2, 22)
+
 
 def test_ym():
     assert ym(2000, -1) == (1999,11)

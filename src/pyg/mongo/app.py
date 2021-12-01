@@ -52,7 +52,6 @@ def request_data(db, table):
     - flask run
     
     
-    
     :Params:
     --------
     db: str

@@ -18,10 +18,11 @@ iso = re.compile('^[0-9]{4}-[0-9]{2}-[0-9]{2}T')
 ambiguity = re.compile('^[0-9]{2}[-/ .][0-9]{2}[-/ .][0-9]{4}')
 futcodes = list('fghjkmnquvxz'.upper())
 months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+wkdays = dict(mon = 0, tue = 1, wed = 2, thu = 3, fri = 4, sat = 5, sun = 6)
 period = re.compile('^[-+]{0,1}[0-9]*[dbwmqyhnsDBWMQYHNS]$')
 
 
-__all__ = ['dt','dt_bump', 'today', 'ymd', 'TMIN', 'TMAX', 'DAY', 'futcodes', 'dt2str', 'is_period']
+__all__ = ['dt','dt_bump', 'today', 'ymd', 'TMIN', 'TMAX', 'DAY', 'futcodes', 'dt2str', 'is_period', 'nth_weekday_of_month']
 
 def today(date = None):
     now = date or datetime.datetime.now()
@@ -369,12 +370,37 @@ def dt(*args, dialect = 'uk', none = datetime.datetime.now):
         return datetime.datetime(y,m,1)
     y,m,d = args[:3]
     t = _ymd(y,m,d)
+    if len(args) == 4 and is_str(args[3]):
+        return nth_weekday_of_month(*args)
     if len(args) > 3:
         args = [int(a) for a in args[3:]] + [0,0,0]
         return t + datetime.timedelta(hours = args[0], minutes = args[1], seconds = args[2])
     else:
         return t
-    
+
+
+def nth_weekday_of_month(y, m, n, w):
+    """
+    y = 2020; m = 2
+    assert nth_weekday_of_month(y, m, -1, 'sat') == dt(2020, 2, 29)
+    assert nth_weekday_of_month(y, m, -2, 'sat') == dt(2020, 2, 22)
+    assert nth_weekday_of_month(y, m, 1, 'sat') == dt(2020, 2, 1)
+    assert nth_weekday_of_month(y, m, 1, 'sun') == dt(2020, 2, 2)
+    assert nth_weekday_of_month(y, m, 1, 'monday') == dt(2020, 2, 3)
+    assert nth_weekday_of_month(y, 'G', 3, 'sat') == dt(2020, 2, 15)
+    assert nth_weekday_of_month(y, 'G', 3, 'sun') == dt(2020, 2, 16)
+    assert nth_weekday_of_month(y, 'G', 3, 'monday') == dt(2020, 2, 17)
+    """
+    if n < 0 :
+        return nth_weekday_of_month(y, m+1, 1, w) + datetime.timedelta(7 * n)
+    t = dt(y, m , 1)
+    bump = wkdays[w[:3].lower()] - t.weekday()
+    if bump < 0:
+        bump = bump + 7
+    bump = bump + (n-1) * 7 
+    res = t + datetime.timedelta(bump)
+    return res
+
 def ymd(*args, dialect = 'uk', none = datetime.datetime.now):
     """
     just like dt() but always returns date only (year/month/date) without fractions.
