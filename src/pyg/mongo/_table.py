@@ -1,5 +1,4 @@
-from pyg.base import is_str
-from pyg.mongo._q import _deleted
+from pyg.base import is_str, cfg_read
 from pyg.mongo._reader import mongo_reader
 from pyg.mongo._cursor import mongo_cursor, mongo_pk_cursor
 
@@ -11,6 +10,19 @@ from motor import MotorClient
 
 __all__ = ['mongo_table']
 
+
+def _url(url):
+    """
+    converts the URL address to actual url based on the cfg['mongo'] locations. see cfg_read() for help.
+    """
+    cfg = cfg_read()
+    mongo = cfg.get('mongo', {})
+    _url = url or 'null'
+    if _url in mongo:
+        return mongo[_url]
+    else:
+        return url
+    
 
 def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, mode = 'w', asynch = False, **kwargs):    
     """
@@ -34,6 +46,8 @@ def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, 
     await c.insert_one(dict(a = 1))
     await c.create_index(dict(a = 1))
 
+    cfg = cfg_read()
+    
     """ 
     if mode is None:
         mode = 'w'
@@ -56,6 +70,7 @@ def mongo_table(table, db, pk = None, url = None, reader = None, writer = None, 
     else:
         obj = mode
 
+    url = _url(url)
     if asynch or isinstance(obj, (mongo_async_reader, mongo_async_cursor)):
         client = MotorClient(url)
     else:
