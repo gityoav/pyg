@@ -9,7 +9,7 @@ from functools import partial
 
 _db = 'db'
 
-__all__ = ['db_load', 'db_save', 'db_cell', 'cell_push', 'cell_pull', 'get_cell', 'get_data']
+__all__ = ['db_load', 'db_save', 'db_cell', 'cell_push', 'cell_pull', 'get_cell', 'load_cell', 'get_data', 'load_data']
 
 
 
@@ -71,29 +71,60 @@ def db_load(value, mode = 0):
     
 def _load_asof(table, kwargs, deleted):
     t = table.inc(kwargs)
-    if len(t) == 0:
+    if t.count() == 0:
         raise ValueError('no cells found matching %s'%kwargs)
     live = t(deleted = False)
+    n = live.count()
     if deleted in (True, None): # we just want live values
-        if len(live) == 0:
+        if n == 0:
             raise ValueError('no undeleted cells found matching %s'%kwargs)        
-        elif len(live)>1:
+        elif n>1:
             raise ValueError('multiple cells found matching %s'%kwargs)
         res = live[0]
     else:
         history = t(deleted = deleted) #cells alive at deleted
-        if len(history) == 0:
-            if len(live) == 0:
+        h = history.count()
+        if h == 0:
+            if n == 0:
                 raise ValueError('no undeleted cells found matching %s'%kwargs)        
-            elif len(live)>1:
+            elif n>1:
                 raise ValueError('multiple cells found matching %s'%kwargs)
             elif deleted is True:
                 raise ValueError('No deleted cells are avaialble but there is a live document matching %s. set delete = False to fetch it'%kwargs)
             res = live[0]
         else:
-            if len(history) > 1 and deleted is True:
+            if h > 1 and deleted is True:
                 raise ValueError('multiple historic cells are avaialble %s. set delete = DATE to find the cell on that date'%kwargs)
             res = history.sort('deleted')[0]
+    return res
+
+async def _load_async_asof(table, kwargs, deleted):
+    t = table.inc(kwargs)
+    if await t.count() == 0:
+        raise ValueError('no cells found matching %s'%kwargs)
+    live = t(deleted = False)
+    n = await live.count()
+    if deleted in (True, None): # we just want live values
+        if n == 0:
+            raise ValueError('no undeleted cells found matching %s'%kwargs)        
+        elif n>1:
+            raise ValueError('multiple cells found matching %s'%kwargs)
+        res = await live[0]
+    else:
+        history = t(deleted = deleted) #cells alive at deleted
+        h = await history.count()
+        if h == 0:
+            if n == 0:
+                raise ValueError('no undeleted cells found matching %s'%kwargs)        
+            elif n>1:
+                raise ValueError('multiple cells found matching %s'%kwargs)
+            elif deleted is True:
+                raise ValueError('No deleted cells are avaialble but there is a live document matching %s. set delete = False to fetch it'%kwargs)
+            res = await live[0]
+        else:
+            if h > 1 and deleted is True:
+                raise ValueError('multiple historic cells are avaialble %s. set delete = DATE to find the cell on that date'%kwargs)
+            res = await history.sort('deleted')[0]
     return res
 
 
@@ -379,7 +410,7 @@ def cell_pull(nodes, types = cell):
     return None        
 
 
-def get_cell(table = None, db = None, url = None, deleted = None, **kwargs):
+async def _get_acell(table = None, db = None, url = None, deleted = None, _from_memory = None, **kwargs):
     """
     retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using deleted.
     It is important to note that this DOES NOT go through the cache mechanism but goes to the database directly every time.
@@ -414,27 +445,240 @@ def get_cell(table = None, db = None, url = None, deleted = None, **kwargs):
     global GRAPH
     if is_pairs(table):
         params = dict(table)
-        params.update({key: value for key, value in dict(db = db, url = url, deleted = deleted).items() if value is not None})
+        params.update({key: value for key, value in dict(db = db, 
+                                                         url = url, 
+                                                         deleted = deleted,
+                                                         _from_memory = _from_memory
+                                                         ).items() if value is not None})
         params.update(kwargs)
-        return get_cell(**params)
+        return await _get_acell(**params)
     
-    if db is not None and table is not None:
-        t = mongo_table(db = db, table = table, url = url)
-        return _load_asof(t, kwargs, deleted)
+    pk = kwargs.pop('pk', None)
+    if pk is None:
+        address = kwargs_address = tuple(sorted(kwargs.items()))
     else:
-        pk = kwargs.pop('pk', None)
-        if pk is None:
-            address = tuple(sorted(kwargs.items()))
-            res = GRAPH[address]
+        pk = sorted(as_list(pk))
+        address = kwargs_address = tuple([(key, kwargs.get(key)) for key in pk]) 
+   
+    if db is not None and table is not None:
+        t = mongo_table(db = db, table = table, url = url, pk = pk, asynch = True)
+        address = t.address + kwargs_address
+        if _from_memory and deleted in (None, False): # we want the standard cell
+            if address not in GRAPH:
+                GRAPH[address] = _load_asof(t, kwargs, deleted)
+            return GRAPH[address]
         else:
-            address = tuple([(key, kwargs.get(key)) for key in sorted(as_list(pk))])
-            res = GRAPH[address]
-        return res
+            return await _load_async_asof(t, kwargs, deleted) # must not overwrite live version. User wants a specific deleted version
+    else:
+        return GRAPH[address]
+
+
+def _get_cell(table = None, db = None, url = None, deleted = None, _from_memory = None, **kwargs):
+    """
+    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using deleted.
+    It is important to note that this DOES NOT go through the cache mechanism but goes to the database directly every time.
+
+    :Parameters:
+    ----------
+    table : str
+        name of table (Mongo collection). alternatively, you can just provide an address
+    db : str
+        name of database.
+    url : TYPE, optional
+        DESCRIPTION. The default is None.
+    deleted : datetime/None, optional
+        The date corresponding to the version of the cell we want
+        None = live cell
+        otherwise, the cell that was first deleted after this date.
+    **kwargs : keywords
+        key words for grabbing the cell.
+
+    :Returns:
+    -------
+    The document
+
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
+    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
+    >>> assert get_cell('test','test', surname = 'brown').name == 'bob'
+        
+    """
+    global GRAPH
+    if is_pairs(table):
+        params = dict(table)
+        params.update({key: value for key, value in dict(db = db, 
+                                                         url = url, 
+                                                         deleted = deleted,
+                                                         _from_memory = _from_memory
+                                                         ).items() if value is not None})
+        params.update(kwargs)
+        return _get_cell(**params)
+    
+    pk = kwargs.pop('pk', None)
+    if pk is None:
+        address = kwargs_address = tuple(sorted(kwargs.items()))
+    else:
+        pk = sorted(as_list(pk))
+        address = kwargs_address = tuple([(key, kwargs.get(key)) for key in pk]) 
+   
+    if db is not None and table is not None:
+        t = mongo_table(db = db, table = table, url = url, pk = pk)
+        address = t.address + kwargs_address
+        if _from_memory and deleted in (None, False): # we want the standard cell
+            if address not in GRAPH:
+                GRAPH[address] = _load_asof(t, kwargs, deleted)
+            return GRAPH[address]
+        else:
+            return _load_asof(t, kwargs, deleted) # must not overwrite live version. User wants a specific deleted version
+    else:
+        return GRAPH[address]
+
+
+def load_cell(table = None, db = None, url = None, deleted = None, **kwargs):
+    """
+    retrieves a cell from a table in a database based on its key words. 
+    In addition, can look at earlier versions using deleted.
+    It is important to note that this DOES NOT go through the cache mechanism 
+    but goes to the database directly every time.
+
+    :Parameters:
+    ----------
+    table : str
+        name of table (Mongo collection). alternatively, you can just provide an address
+    db : str
+        name of database.
+    url : TYPE, optional
+        DESCRIPTION. The default is None.
+    deleted : datetime/None, optional
+        The date corresponding to the version of the cell we want
+        None = live cell
+        otherwise, the cell that was first deleted after this date.
+    **kwargs : keywords
+        key words for grabbing the cell.
+
+    :Returns:
+    ---------
+    The document
+
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
+    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
+    >>> assert load_cell('test','test', surname = 'brown').name == 'bob'
+        
+    """
+    return _get_cell(table = table, db = db, url = url, deleted = deleted, **kwargs)
+
+
+def get_cell(table = None, db = None, url = None, deleted = None, **kwargs):
+    """
+    unlike load_cell which will get the data from the database by default 
+    get cell looks at the in-memory cache to see if the cell exists there.
+
+    :Parameters:
+    ----------
+    table : str
+        name of table (Mongo collection). alternatively, you can just provide an address
+    db : str
+        name of database.
+    url : TYPE, optional
+        DESCRIPTION. The default is None.
+    deleted : datetime/None, optional
+        The date corresponding to the version of the cell we want
+        None = live cell
+        otherwise, the cell that was first deleted after this date.
+    **kwargs : keywords
+        key words for grabbing the cell.
+
+    :Returns:
+    -------
+    The document
+
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
+    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
+    >>> assert get_cell('test','test', surname = 'brown').name == 'bob'
+    """
+    return _get_cell(table = table, db = db, url = url, deleted = deleted, _from_memory = True, **kwargs)
+
+
+async def get_acell(table = None, db = None, url = None, deleted = None, **kwargs):
+    """
+    unlike load_cell which will get the data from the database by default 
+    get cell looks at the in-memory cache to see if the cell exists there.
+
+    :Parameters:
+    ----------
+    table : str
+        name of table (Mongo collection). alternatively, you can just provide an address
+    db : str
+        name of database.
+    url : TYPE, optional
+        DESCRIPTION. The default is None.
+    deleted : datetime/None, optional
+        The date corresponding to the version of the cell we want
+        None = live cell
+        otherwise, the cell that was first deleted after this date.
+    **kwargs : keywords
+        key words for grabbing the cell.
+
+    :Returns:
+    -------
+    The document
+
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
+    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
+    >>> assert get_cell('test','test', surname = 'brown').name == 'bob'
+    """
+    return await _get_acell(table = table, db = db, url = url, deleted = deleted, _from_memory = True, **kwargs)
+
+async def load_acell(table = None, db = None, url = None, deleted = None, **kwargs):
+    """
+    unlike load_cell which will get the data from the database by default 
+    get cell looks at the in-memory cache to see if the cell exists there.
+
+    :Parameters:
+    ----------
+    table : str
+        name of table (Mongo collection). alternatively, you can just provide an address
+    db : str
+        name of database.
+    url : TYPE, optional
+        DESCRIPTION. The default is None.
+    deleted : datetime/None, optional
+        The date corresponding to the version of the cell we want
+        None = live cell
+        otherwise, the cell that was first deleted after this date.
+    **kwargs : keywords
+        key words for grabbing the cell.
+
+    :Returns:
+    -------
+    The document
+
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
+    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
+    >>> assert get_cell('test','test', surname = 'brown').name == 'bob'
+    """
+    return await _get_acell(table = table, db = db, url = url, deleted = deleted, **kwargs)
+
 
 
 def get_data(table = None, db = None, url = None, deleted = None, **kwargs):
     """
-    retrieves a cell from a table in a database based on its key words. In addition, can look at earlier versions using deleted.
+    retrieves a cell from a table in a database based on its key words. 
+    In addition, can look at earlier versions using deleted.
 
     :Parameters:
     ----------
@@ -465,3 +709,39 @@ def get_data(table = None, db = None, url = None, deleted = None, **kwargs):
         
     """    
     return cell_item(get_cell(table, db = db, url = url, deleted = deleted, **kwargs), key = 'data')
+
+def load_data(table = None, db = None, url = None, deleted = None, **kwargs):
+    """
+    retrieves a cell from a table in a database based on its key words. 
+    In addition, can look at earlier versions using deleted.
+
+    :Parameters:
+    ----------
+    table : str
+        name of table (Mongo collection).
+    db : str
+        name of database.
+    url : TYPE, optional
+        DESCRIPTION. The default is None.
+    deleted : datetime/None, optional
+        The date corresponding to the version of the cell we want
+        None = live cell
+        otherwise, the cell that was first deleted after this date.
+    **kwargs : keywords
+        key words for grabbing the cell.
+
+    :Returns:
+    -------
+    The document
+
+    :Example:
+    ---------
+    >>> from pyg import *
+    >>> people = partial(mongo_table, db = 'test', table = 'test', pk = ['name', 'surname'])
+    >>> people().reset.drop()
+    >>> brown = db_cell(db = people, name = 'bob', surname = 'brown', age = 39).save()
+    >>> assert load_data('test','test', surname = 'brown') is None
+        
+    """    
+    return cell_item(load_cell(table, db = db, url = url, deleted = deleted, **kwargs), key = 'data')
+

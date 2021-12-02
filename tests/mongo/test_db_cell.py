@@ -1,7 +1,8 @@
 import pandas as pd; import numpy as np
 from functools import partial
 from pyg.base._cell import _pk
-from pyg import db_cell, cell, dt, mongo_table, eq, GRAPH, presync, pd_read_parquet, drange, parquet_write, encode, db_save, db_load, cell_clear, \
+from pyg import db_cell, cell, dt, mongo_table, eq, GRAPH, presync, pd_read_parquet, drange, \
+    parquet_write, encode, db_save, db_load, cell_clear, load_cell, load_data, \
     v2na, add_, sub_, div_, ewma, ewmrms
 
 from operator import add
@@ -246,12 +247,13 @@ def test_db_cell_point_in_time():
 
     ## now try and grab...
     with pytest.raises(ValueError):
-        get_cell('test', 'test', key = 'z')
+        load_cell('test', 'test', key = 'z')
 
+    assert load_cell('test', 'test', key = 'z', deleted = dt(1999)).data == 8
     assert get_cell('test', 'test', key = 'z', deleted = dt(1999)).data == 8
 
     with pytest.raises(ValueError):
-        get_cell('test', 'test', key = 'z', deleted = dt(2001))
+        load_cell('test', 'test', key = 'z', deleted = dt(2001))
 
     x1 = db_cell(add_, a = 10, b = 20, key = 'x', db = db)(mode = -1)
     y1 = db_cell(add_, a = x1, b = 20, key = 'y', db = db)(mode = -1)

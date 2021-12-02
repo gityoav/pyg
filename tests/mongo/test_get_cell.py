@@ -34,12 +34,12 @@ def test_get_cell_with_version_control():
     assert get_cell('test','test', a = 3, b = 2).data == 6
     assert get_data('test','test', a = 3, b = 2) == 6
     with pytest.raises(ValueError):
-        get_cell('test', 'test', a = 3)    
+        load_cell('test', 'test', a = 3)    
     with pytest.raises(ValueError):
-        get_cell('test', 'test', a = 30)    
+        load_cell('test', 'test', a = 30)    
     db().drop()
     with pytest.raises(ValueError):
-        get_cell('test','test', a = 1, b = 1)
+        load_cell('test','test', a = 1, b = 1)
 
     assert get_cell('test','test', a = 1, b = 1, deleted = t).data == 1
     db().reset.drop()
