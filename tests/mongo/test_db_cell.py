@@ -111,7 +111,7 @@ def test_db_cell_clear_mix():
     b = db_cell(add_, a = 1, b = 2, key = 'b', pk = ['key'])
     c = db_cell(add_, a = a, b = b, key = 'c')
     d = db_cell(add_, a = a, b = c, key = 'd', db = db)
-    d = d()
+    d = d(0,-1)
     x = db().inc(key = 'd')[0]     
     assert 'data' not in x.b and 'data' not in x.a
     assert x.a.load().data == 3

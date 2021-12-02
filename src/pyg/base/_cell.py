@@ -695,13 +695,21 @@ class cell(dictattr):
 
 
         """
-        res = (self + kwargs)._go(go = go, mode = mode)
-        address = res._address
-        if address in UPDATED:
-            res[_updated] = UPDATED[address] 
-        else: 
-            res[_updated] = datetime.datetime.now()
-        return res.save()
+        res = (self + kwargs)
+        if res.run() or go!=0:
+            res = res._go(go = go, mode = mode)
+            address = res._address
+            if address in UPDATED:
+                res[_updated] = UPDATED[address] 
+            else: 
+                res[_updated] = datetime.datetime.now()
+            return res.save()
+        else:
+            address = res._address
+            if address:
+                GRAPH[address] = res
+            return res
+        
     
     def copy(self):
         return copy(self)

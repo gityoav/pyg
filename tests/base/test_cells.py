@@ -181,8 +181,8 @@ def test_cell_inputs():
     assert cell_inputs(e, int)  == [4,5]
     
 def test_cell_push_and_updated():
-    a = cell(passthru, data = 1, pk = 'i', i = 0)().pull()
-    b = cell(passthru, data = 2, pk = 'i', i = 1)().pull()
+    a = cell(passthru, data = 1, pk = 'i', i = 0)()
+    b = cell(passthru, data = 2, pk = 'i', i = 1)()
     assert a._address in GRAPH and b._address in GRAPH
     for i in range(2, 10):
         c = cell(add_, a = a, b = b, pk = 'i', i = i)().pull()
