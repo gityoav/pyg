@@ -304,7 +304,7 @@ class db_cell(cell):
                 return res.load(mode[-1])
             else:
                 raise ValueError('mode can only be of the form [], [mode] or [-1, mode]')
-        db = self.db(asynch = False)
+        db = self.db(mode = 'w')
         pk = ulist(db._pk)
         missing = pk - self.keys()
         if len(missing):
@@ -461,7 +461,7 @@ async def _get_acell(table = None, db = None, url = None, deleted = None, _from_
         address = kwargs_address = tuple([(key, kwargs.get(key)) for key in pk]) 
    
     if db is not None and table is not None:
-        t = mongo_table(db = db, table = table, url = url, pk = pk, asynch = True)
+        t = mongo_table(db = db, table = table, url = url, pk = pk, mode = 'aw')
         address = t.address + kwargs_address
         if _from_memory and deleted in (None, False): # we want the standard cell
             if address not in GRAPH:
