@@ -12,3 +12,8 @@ A conda installation is available from my anaconda channel https://anaconda.org/
 - HTML manual is available here: https://gityoav.github.io/pygio/
 - Interactive tutorials using jupyter and can be found in docs/lab
 
+pyg is now split into separate packages:
+- pyg-base: fast data management and DAG creation 
+- pyg-mongo: synchronous mongodb access
+- pyg-timeseries: timeseries analytics
+- pyg-mongo-async: extending pyg-mongo to asynchronous mongo access using the Motor package. 
