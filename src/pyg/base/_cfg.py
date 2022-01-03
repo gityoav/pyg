@@ -1,6 +1,6 @@
 import os
 import json
-CFG = 'c:/etc/pyg.json' # this should really live in PYG_CFG in environment variables
+CFG = os.environ.get('PYG_CFG', 'c:/etc/pyg.json')
 
 def mkdir(path):
     """
