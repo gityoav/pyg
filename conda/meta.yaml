@@ -1,6 +1,6 @@
 package:
     name: pyg
-    version: 1.0.4
+    version: 1.0.5
 
 source:
     path: ../src
@@ -12,15 +12,23 @@ build:
 
 requirements:
     build:
-        - pyg_base       >=0.0.7
+        - pyg_npy        >=0.0.1
+        - pyg_base       >=0.0.17
         - pyg_mongo      >=0.0.7
         - pyg_timeseries >=0.0.3
         - pyg_bond       >=0.01
+        - pyg_encoders   >=0.01
+        - pyg_cell       >=0.01
+        - pyg_sql       >=0.01
     run:
-        - pyg_base       >=0.0.7
+        - pyg_npy        >=0.0.1
+        - pyg_base       >=0.0.17
         - pyg_mongo      >=0.0.7
         - pyg_timeseries >=0.0.3
         - pyg_bond       >=0.01
+        - pyg_encoders   >=0.01
+        - pyg_cell       >=0.01
+        - pyg_sql       >=0.01
         
 about:
     home: https://github.com/gityoav/pyg
