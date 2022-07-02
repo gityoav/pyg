@@ -26,6 +26,9 @@
 *.zip
 *.coverage
 
+# notepad backup files
+*.bak
+
 # temp files
 \#*
 \.\#*
