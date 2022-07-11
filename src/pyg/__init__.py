@@ -6,5 +6,5 @@ from pyg.bond import *
 from pyg.encoders import * 
 from pyg.sql import *
 from pyg.mongo import *
-from pyg.cell import *
+from pyg.cells import *
 from pyg.timeseries import *
