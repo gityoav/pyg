@@ -1,5 +1,5 @@
 package:
-    name: pyg
+    name: pygpyg
     version: 1.0.6
 
 source:
@@ -12,23 +12,9 @@ build:
 
 requirements:
     build:
-        - pyg_npy        >=0.0.7
-        - pyg_base       >=0.0.19
-        - pyg_mongo      >=0.0.13
-        - pyg_timeseries >=0.0.19
-        - pyg_bond       >=0.0.3
-        - pyg_encoders   >=0.0.3
-        - pyg_cell       >=0.0.3
-        - pyg_sql        >=0.0.3
+        - pandas         >=0.2.0
     run:
-        - pyg_npy        >=0.0.7
-        - pyg_base       >=0.0.19
-        - pyg_mongo      >=0.0.13
-        - pyg_timeseries >=0.0.19
-        - pyg_bond       >=0.0.3
-        - pyg_encoders   >=0.0.3
-        - pyg_cell       >=0.0.3
-        - pyg_sql        >=0.0.3
+        - pandas         >=0.2.0
         
 about:
     home: https://github.com/gityoav/pyg
