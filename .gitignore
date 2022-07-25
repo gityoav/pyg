@@ -16,6 +16,9 @@
 **/docs/_build/html/lab/**
 **/docs/lab/.ipynb_checkpoints/**
 
+# PyCharm
+.idea/
+
 # build files
 **/dist/**
 **/build/**
