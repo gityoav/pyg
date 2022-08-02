@@ -1,8 +1,6 @@
 pyg-npy
 pyg-base
 pyg-timeseries
-pyg-mongo
 pyg-bond
 pyg-cell
-pyg-sql
 pyg-encoders
