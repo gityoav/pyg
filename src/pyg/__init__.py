@@ -12,31 +12,42 @@ except Exception:
     print('pyg_base not imported')
 
 try:
-    from pyg.bond import * 
+    ignore = cfg_read().get('pyg_ignore', [])
 except Exception:
-    print('pyg_bond not imported')
+    ignore = []
 
-try:
-    from pyg.encoders import * 
-except Exception:
-    print('pyg_encoders not imported')
+if 'pyg_bond' not in ignore:
+    try:
+        from pyg.bond import * 
+    except Exception:
+        print('pyg_bond not imported')
 
-try: 
-    from pyg.sql import *
-except Exception:
-    print('pyg_sql not imported')
+if 'pyg_encoders' not in ignore:
+    try:
+        from pyg.encoders import * 
+    except Exception:
+        print('pyg_encoders not imported')
 
-try: 
-    from pyg.mongo import *
-except Exception:
-    print('pyg_mongo not imported')
+if 'pyg_sql' not in ignore:
+    try: 
+        from pyg.sql import *
+    except Exception:
+        print('pyg_sql not imported')
 
-try: 
-    from pyg.cells import *
-except Exception:
-    print('pyg_cell not imported')
+if 'pyg_mongo' not in ignore:
+    try: 
+        from pyg.mongo import *
+    except Exception:
+        print('pyg_mongo not imported')
 
-try: 
-    from pyg.timeseries import *
-except Exception:
-    print('pyg_timeseries not imported')
+if 'pyg_cell' not in ignore:
+    try: 
+        from pyg.cells import *
+    except Exception:
+        print('pyg_cell not imported')
+
+if 'pyg_timeseries' not in ignore:
+    try: 
+        from pyg.timeseries import *
+    except Exception:
+        print('pyg_timeseries not imported')
