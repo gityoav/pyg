@@ -8,6 +8,14 @@ except Exception:
 
 try:
     from pyg.base import *
+    path = cfg_read().get('PYTHONPATH')
+    if path:
+        import sys
+        for p in as_list(path)[::-1]:
+            if p not in sys.path:
+                logger.info('addint %s to sys.path'%p)
+                sys.path.insert(0, p)
+
 except Exception:
     print('pyg_base not imported')
 
