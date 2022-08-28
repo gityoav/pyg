@@ -13,7 +13,7 @@ try:
         import sys
         for p in as_list(path)[::-1]:
             if p not in sys.path:
-                logger.info('addint %s to sys.path'%p)
+                logger.info('added %s to sys.path'%p)
                 sys.path.insert(0, p)
 
 except Exception:
