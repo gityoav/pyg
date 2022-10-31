@@ -4,4 +4,4 @@ import platform
 from setuptools import setup, find_packages
 from distutils.core import Extension
 
-setup(name = 'pygpyg', version = '1.0.9', packages = find_packages(), python_requires = '>=3.6.')
+setup(name = 'pygpyg', version = '1.0.10', packages = find_packages(), python_requires = '>=3.6.')
