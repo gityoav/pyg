@@ -1,6 +1,6 @@
 package:
     name: pygpyg
-    version: 1.0.20221103
+    version: 1.0.20230210
 
 source:
     path: ../src
