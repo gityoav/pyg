@@ -1,7 +1,7 @@
-pyg-npy==0.0.7
-pyg-base==0.0.39
-pyg-timeseries==0.0.15
-pyg-bond==0.0.12
-pyg-encoders==0.0.11
-pyg-cell==0.0.21
-pyg-sql==0.0.37
+pyg-npy
+pyg-base
+pyg-timeseries
+pyg-bond
+pyg-encoders
+pyg-cell
+pyg-sql
